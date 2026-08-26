@@ -1,0 +1,83 @@
+项目：计算机专业考研择校平台
+目录：C:\Users\Lenovo\grad-school-platform
+需求书：E:\计算机专业考研择校平台需求规格说明书.docx
+更新时间：2026-08-25
+
+当前运行地址
+- Vue： http://127.0.0.1:5173/#/programs
+- 对比页： http://127.0.0.1:5173/#/compare
+- 择校建议页： http://127.0.0.1:5173/#/recommend
+- Spring： http://127.0.0.1:8080
+- Flask： http://127.0.0.1:5001/health
+
+已完成
+- Vue 页面已拆为 Hash 路由式独立视图：招生检索、对比清单、择校建议。
+- 检索页显示来源、来源链接、采集时间、年份；支持关键词、省份（20个省份）、专业代码、408/数学筛选、分页。
+- 对比清单限制最多 5 项，保存在浏览器 localStorage。
+- 推荐页支持成绩、地区、风险偏好、权重配置；显示冲刺/稳妥/保底、理由、年度、来源、模型版本和免责声明。
+- Flask 推荐服务模型版本为 rules-v0.2，接口：POST /api/v1/recommendations。
+- Spring Program 增加 universityLevel、plannedEnrollment、nationalLine、sourceName、sourceUrl、sourceYear、collectedAt、publishStatus、remarks。
+- Spring GET /api/v1/programs 返回分页对象：items、total、page、pageSize、totalPages。
+- Flink 已修复运行方式；历史确认输出：program ID 3 heat 4、hot-keyword big data count 2。
+- Hive 年度聚合和推荐特征 SQL 已补齐。
+- Spring 导入API列数检查bug修复（f.length < 20 改为 f.length < 18）。
+- 从CPEER开源数据集（https://github.com/Younai2021/CPEER-Dataset）获取真实考研录取数据。
+- 聚合CPEER数据为Program级记录（645条），通过导入API入库，总计649条已发布记录。
+- 数据覆盖59所高校、15个省份、2020-2023年4个年度。
+
+已验证
+- web：npm run build 通过。
+- recommendation：py -3 -m pytest -q 通过，1 passed。
+- business-service：mvn test -q 通过。
+- Vue 首页 HTTP 200。
+- Flask /health 返回 rules-v0.2。
+- Spring 分页与 examKeyword=408 筛选已实际请求验证。
+
+真实数据采集
+- 目录：data-collection\
+- 配置：data-collection\sources.json
+- 采集器：data-collection\collect_sources.py
+- 运行：cd data-collection ; py -3 collect_sources.py
+- 策略：只允许配置的 yz.chsi.com.cn 或 edu.cn 域名；抓取快照、SHA-256、最终 URL、采集时间；不绕过访问控制。
+- 最新运行目录：data-collection\runs\20260825-172844\
+- 最新清单：data-collection\runs\20260825-172844\manifest.json
+- 已成功快照：
+  - https://yz.chsi.com.cn/zsml/
+  - https://yjszs.hdu.edu.cn/
+- 已失败并记录：
+  - https://grs.bupt.edu.cn/ ：HTTP 412
+  - https://yz.nuist.edu.cn/ ：TLS/连接中断
+- 重要：当前采集仅完成来源快照，不会自动将页面发布为结构化招生数据。必须增加“年度目录/PDF解析 -> 字段映射 -> 去重校验 -> 人工审核 -> PUBLISHED 导入”后才可进入学生端。
+
+关键文件
+- web/src/App.vue
+- web/src/style.css
+- web/vite.config.js
+- services/recommendation/app.py
+- services/recommendation/recommendation.py
+- services/business-service/src/main/java/cn/edu/gradschool/business/Program.java
+- services/business-service/src/main/java/cn/edu/gradschool/business/ProgramController.java
+- services/business-service/src/main/java/cn/edu/gradschool/business/BusinessServiceApplication.java
+- services/business-service/src/main/java/cn/edu/gradschool/business/Repositories.java
+- data-collection/sources.json
+- data-collection/collect_sources.py
+- data-collection/aggregate_cpeer.py（CPEER数据聚合脚本）
+- data-collection/import_to_spring.py（数据导入脚本）
+- data-collection/runs/CPEER.db（CPEER开源数据集）
+- data-collection/runs/cpeer_programs_import.csv（导入用CSV）
+
+当前重要限制/未完成项
+- 当前有649条真实数据（来自CPEER开源数据集），来源可追溯，但尚未达到10000条目标。
+- 不能以生成、推测或抓取受限网页的方式填充报名人数、复试线、计划数等字段；官方未公开时必须显示"未公开"。
+- CPEER数据为考生个体录取记录聚合而成，部分字段（如复试线、计划招生数）需从官方招生目录补充。
+- 需要补充管理员端：批量导入格式校验、来源校验、去重、审核、发布、审计日志和错误报告。
+- 需要按需求书补齐账号认证/RBAC、备考计划、公告/反馈、运营看板、MySQL/Redis 实际部署。
+- 当前 Spring 使用 H2 内存数据库，重启后数据会重置；生产接入 MySQL 前不可作为真实数据长期存储。
+- 当前服务已经在运行。若 Spring 改动后需要重启 8080；Vite 通常可热更新；Flask debug 模式通常可重载。
+
+下次优先工作
+1. 从更多高校官方年度目录页面/PDF采集数据，写来源专用解析器，扩充至10000条。
+2. 设计规范 CSV/JSONL 与审核状态流，解析后的记录仅在审核后写入 PUBLISHED。
+3. 补充CPEER数据中缺失的字段（复试线、计划招生数、考试科目）。
+4. 把 Spring 从 H2 迁移到 MySQL，并实现数据导入日志和审计。
+5. 补充接口、导入和前端路由测试。

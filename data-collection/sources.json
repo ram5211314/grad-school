@@ -1,0 +1,9 @@
+{
+  "policy": {"allowedDomains": ["yz.chsi.com.cn", "*.edu.cn"], "requestDelaySeconds": 2, "userAgent": "grad-school-platform-data-collector/0.1"},
+  "sources": [
+    {"id":"chsi-public", "name":"中国研究生招生信息网", "url":"https://yz.chsi.com.cn/zsml/", "kind":"official-catalog-index", "applicableYear":2026, "status":"DISCOVERY"},
+    {"id":"bupt-graduate", "name":"北京邮电大学研究生招生", "url":"https://grs.bupt.edu.cn/", "kind":"university-graduate-school", "applicableYear":2026, "status":"DISCOVERY"},
+    {"id":"hdu-graduate", "name":"杭州电子科技大学研究生招生", "url":"https://yjszs.hdu.edu.cn/", "kind":"university-graduate-school", "applicableYear":2026, "status":"DISCOVERY"},
+    {"id":"nuist-graduate", "name":"南京信息工程大学研究生招生", "url":"https://yz.nuist.edu.cn/", "kind":"university-graduate-school", "applicableYear":2026, "status":"DISCOVERY"}
+  ]
+}
