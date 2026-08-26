@@ -1,0 +1,64 @@
+Total programs: 649
+Fetched: 649
+
+By year:
+  2020: 16
+  2021: 103
+  2022: 172
+  2023: 354
+  2025: 4
+
+By province:
+  北京: 164
+  未知: 108
+  江苏: 65
+  湖北: 63
+  四川: 37
+  陕西: 32
+  上海: 23
+  辽宁: 20
+  福建: 17
+  广西: 16
+  吉林: 15
+  贵州: 13
+  河北: 10
+  西藏: 10
+  新疆: 10
+
+By level:
+  普通: 645
+  省属重点: 2
+  211: 1
+  双一流: 1
+
+Sample records (first 30):
+  北京邮电大学 | 计算机科学与技术 | 北京 | 2025 | enrolled=78 | registered=None
+  杭州电子科技大学 | 计算机技术 | 浙江 | 2025 | enrolled=118 | registered=None
+  南京信息工程大学 | 大数据技术与工程 | 江苏 | 2025 | enrolled=88 | registered=None
+  杭州电子科技大学 | 网络空间安全 | 浙江 | 2025 | enrolled=28 | registered=None
+  北京邮电大学 | 智能科学与技术 | 北京 | 2023 | enrolled=30 | registered=38
+  北京邮电大学 | 控制科学与工程 | 北京 | 2023 | enrolled=26 | registered=31
+  北京邮电大学 | 人工智能 | 北京 | 2023 | enrolled=124 | registered=148
+  北京邮电大学 | 软件工程 | 北京 | 2023 | enrolled=11 | registered=12
+  北京邮电大学 | 计算机技术 | 北京 | 2023 | enrolled=4 | registered=4
+  北京邮电大学 | 新一代电子信息技术 | 北京 | 2023 | enrolled=214 | registered=302
+  北京邮电大学 | 生物医学工程 | 北京 | 2023 | enrolled=5 | registered=10
+  北京邮电大学 | 电子科学与技术 | 北京 | 2023 | enrolled=157 | registered=220
+  北京邮电大学 | 光学工程 | 北京 | 2023 | enrolled=16 | registered=23
+  北京邮电大学 | 光电信息工程 | 北京 | 2023 | enrolled=2 | registered=3
+  北京航空航天大学 | 软件工程 | 北京 | 2023 | enrolled=18 | registered=21
+  北京航空航天大学 | 计算机科学与技术 | 北京 | 2023 | enrolled=46 | registered=66
+  北京航空航天大学 | 光学工程 | 北京 | 2023 | enrolled=4 | registered=6
+  北京航空航天大学 | 交通信息工程及控制 | 北京 | 2023 | enrolled=8 | registered=11
+  北京航空航天大学 | 电子科学与技术 | 北京 | 2023 | enrolled=16 | registered=16
+  北京航空航天大学 | 信息与通信工程 | 北京 | 2023 | enrolled=40 | registered=51
+  北京航空航天大学 | 电子信息 | 北京 | 2023 | enrolled=210 | registered=245
+  北京科技大学 | 计算机技术 | 北京 | 2023 | enrolled=40 | registered=57
+  北京科技大学 | 通信工程 | 北京 | 2023 | enrolled=50 | registered=72
+  北京科技大学 | 计算机科学与技术 | 北京 | 2023 | enrolled=28 | registered=39
+  北京科技大学 | 信息与通信工程 | 北京 | 2023 | enrolled=16 | registered=23
+  北京科技大学 | 仪器仪表工程 | 北京 | 2023 | enrolled=26 | registered=38
+  北京科技大学 | 控制工程 | 北京 | 2023 | enrolled=77 | registered=109
+  北京科技大学 | 控制科学与工程 | 北京 | 2023 | enrolled=28 | registered=36
+  北京科技大学 | 仪器科学与技术 | 北京 | 2023 | enrolled=12 | registered=18
+  北京理工大学 | 计算机技术 | 北京 | 2023 | enrolled=64 | registered=64

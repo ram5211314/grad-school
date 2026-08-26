@@ -1,12 +1,30 @@
 <script setup>
 import { computed, onMounted, ref, watch, nextTick } from "vue";
-import { BarChart3, Bookmark, ChevronLeft, ChevronRight, Database, ExternalLink, GraduationCap, LayoutDashboard, MapPin, PieChart, Search, Settings, Shield, SlidersHorizontal, Sparkles, Upload, User, Users, FileText, X } from "lucide-vue-next";
+import { BarChart3, Bookmark, ChevronLeft, ChevronRight, Database, ExternalLink, GraduationCap, LayoutDashboard, LogOut, MapPin, PieChart, Search, Settings, Shield, SlidersHorizontal, Sparkles, Upload, User, Users, FileText, X } from "lucide-vue-next";
 import * as echarts from "echarts";
+import LoginPage from "./views/LoginPage.vue";
 
 const apiBase = "/api/v1";
 const recommendationUrl = "/recommendation/api/v1/recommendations";
 const route = ref(location.hash.replace("#", "") || "/programs");
+const loggedIn = ref(false);
+const currentUser = ref(null);
 const mode = ref("user");
+
+function handleLogin(user) {
+  loggedIn.value = true;
+  currentUser.value = user;
+  mode.value = user.role === "ADMIN" ? "admin" : "user";
+  go(mode.value === "admin" ? "/admin/dashboard" : "/programs");
+}
+function logout() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  loggedIn.value = false;
+  currentUser.value = null;
+  mode.value = "user";
+  go("/programs");
+}
 const programs = ref([]); const total = ref(0); const loading = ref(false); const apiError = ref(false);
 const selectedPrograms = ref(JSON.parse(localStorage.getItem("shortlist") || "[]"));
 const recommendations = ref([]); const isRecommending = ref(false); const page = ref(0);
@@ -47,19 +65,33 @@ function renderYearChart(yearMap, programs) { const el = document.getElementById
 function renderEnrollChart(uniEnroll) { const el = document.getElementById("chart-enrollment"); if (!el) return; if (enrollmentChart) enrollmentChart.dispose(); enrollmentChart = echarts.init(el); const s = Object.entries(uniEnroll).filter(([, v]) => v.e > 0).sort((a, b) => b[1].e - a[1].e).slice(0, 12); enrollmentChart.setOption({ title: { text: "TOP12 高校录取规模", left: "center" }, tooltip: { trigger: "axis" }, legend: { bottom: 0, data: ["录取", "报名"] }, xAxis: { type: "category", data: s.map(x => x[0].length > 6 ? x[0].substring(0, 6) + ".." : x[0]), axisLabel: { rotate: 30, fontSize: 11 } }, yAxis: { type: "value" }, series: [{ name: "录取", type: "bar", data: s.map(x => x[1].e), itemStyle: { color: "#67c23a" } }, { name: "报名", type: "bar", data: s.map(x => x[1].r), itemStyle: { color: "#f56c6c" } }], grid: { left: 50, right: 20, bottom: 60, top: 40 } }); }
 watch(route, (v) => { if (v === "/charts") setTimeout(initCharts, 100); });
 window.addEventListener("resize", () => { [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => c?.resize()); });
-onMounted(loadPrograms);
+onMounted(() => {
+  const saved = localStorage.getItem("user");
+  if (saved) {
+    try {
+      currentUser.value = JSON.parse(saved);
+      loggedIn.value = true;
+      mode.value = currentUser.value.role === "ADMIN" ? "admin" : "user";
+    } catch {}
+  }
+  loadPrograms();
+});
 </script>
 
 <template>
-  <main class="app-shell">
+  <LoginPage v-if="!loggedIn" @login="handleLogin"/>
+  <main v-else class="app-shell">
     <header class="app-header">
       <button class="brand" @click="go('/programs')"><GraduationCap :size="22"/> 计算机考研择校</button>
-      <div class="mode-switch">
+      <div class="mode-switch" v-if="currentUser?.role === 'ADMIN'">
         <button :class="{ active: mode === 'user' }" @click="switchMode('user')"><User :size="15"/> 用户端</button>
         <button :class="{ active: mode === 'admin' }" @click="switchMode('admin')"><Shield :size="15"/> 管理员</button>
       </div>
       <nav><button v-for="item in nav" :key="item.path" :class="{ active: route === item.path }" @click="go(item.path)"><component :is="item.icon" :size="17"/>{{ item.label }}</button></nav>
-      <span class="header-note"><Database :size="15"/>公开数据优先</span>
+      <div class="header-right">
+        <span class="user-info"><User :size="14"/> {{ currentUser?.username }} <small>({{ currentUser?.role === 'ADMIN' ? '管理员' : '用户' }})</small></span>
+        <button class="logout-btn" @click="logout"><LogOut :size="15"/> 退出</button>
+      </div>
     </header>
 
     <!-- ========== 用户端 ========== -->
