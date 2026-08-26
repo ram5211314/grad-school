@@ -9,20 +9,17 @@ const recommendationUrl = "/recommendation/api/v1/recommendations";
 const route = ref(location.hash.replace("#", "") || "/programs");
 const loggedIn = ref(false);
 const currentUser = ref(null);
-const mode = ref("user");
-
 function handleLogin(user) {
   loggedIn.value = true;
   currentUser.value = user;
-  mode.value = user.role === "ADMIN" ? "admin" : "user";
-  go(mode.value === "admin" ? "/admin/dashboard" : "/programs");
+  if (user.role === "ADMIN") go("/admin/dashboard");
+  else go("/programs");
 }
 function logout() {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
   loggedIn.value = false;
   currentUser.value = null;
-  mode.value = "user";
   go("/programs");
 }
 const programs = ref([]); const total = ref(0); const loading = ref(false); const apiError = ref(false);
@@ -32,19 +29,38 @@ const filters = ref({ keyword: "", province: "", majorCode: "", examKeyword: "",
 const profile = ref({ targetMajor: "大数据技术与工程", estimatedScore: 340, preferredProvinces: "江苏,浙江", riskPreference: "BALANCED" });
 const weights = ref({ score: 45, competition: 20, region: 15, major: 15 });
 const pageSize = 12;
-const userNav = [{ path: "/programs", label: "招生检索", icon: Search }, { path: "/compare", label: "对比清单", icon: BarChart3 }, { path: "/recommend", label: "择校建议", icon: Sparkles }, { path: "/charts", label: "数据可视化", icon: PieChart }, { path: "/user/profile", label: "个人中心", icon: User }, { path: "/user/favorites", label: "我的收藏", icon: Bookmark }];
+const apiTestUrl = ref("/api/v1/programs");
+const apiTestMethod = ref("GET");
+const apiTestBody = ref('{ "page": 0, "pageSize": 5 }');
+const apiTestResult = ref(null);
+const apiTestLoading = ref(false);
+
+async function runApiTest() {
+  apiTestLoading.value = true;
+  apiTestResult.value = null;
+  try {
+    const opts = { method: apiTestMethod.value, headers: { "Content-Type": "application/json" } };
+    if (apiTestMethod.value === "POST" || apiTestMethod.value === "PUT") opts.body = apiTestBody.value;
+    const res = await fetch(apiTestUrl.value, opts);
+    const text = await res.text();
+    apiTestResult.value = { status: res.status, statusText: res.statusText, body: text };
+  } catch (e) {
+    apiTestResult.value = { status: 0, statusText: "Error", body: e.message };
+  } finally {
+    apiTestLoading.value = false;
+  }
+}
+const userNav = [{ path: "/programs", label: "招生检索", icon: Search }, { path: "/compare", label: "对比清单", icon: BarChart3 }, { path: "/recommend", label: "择校建议", icon: Sparkles }, { path: "/charts", label: "数据可视化", icon: PieChart }, { path: "/user/profile", label: "个人中心", icon: User }];
 const adminNav = [{ path: "/admin/dashboard", label: "系统概览", icon: LayoutDashboard }, { path: "/admin/data", label: "数据管理", icon: Database }, { path: "/admin/import", label: "数据导入", icon: Upload }, { path: "/admin/users", label: "用户管理", icon: Users }, { path: "/admin/logs", label: "系统日志", icon: FileText }];
-const nav = computed(() => mode.value === "admin" ? adminNav : userNav);
+const testNav = [{ path: "/programs", label: "招生检索", icon: Search }, { path: "/compare", label: "对比清单", icon: BarChart3 }, { path: "/test/api", label: "API调试", icon: FileText }, { path: "/charts", label: "数据可视化", icon: PieChart }, { path: "/user/profile", label: "个人中心", icon: User }];
+const nav = computed(() => { const r = currentUser.value?.role; if (r === "ADMIN") return adminNav; if (r === "TEST") return testNav; return userNav; });
+const isAdmin = computed(() => currentUser.value?.role === "ADMIN");
+const isTest = computed(() => currentUser.value?.role === "TEST");
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const candidatePrograms = computed(() => selectedPrograms.value.length ? selectedPrograms.value : programs.value);
 
 function go(path) { location.hash = path; }
-function switchMode(m) { mode.value = m; const first = nav.value[0]; if (first) go(first.path); }
-window.addEventListener("hashchange", () => {
-  const r = location.hash.replace("#", "") || "/programs";
-  route.value = r;
-  if (r.startsWith("/admin")) mode.value = "admin";
-});
+window.addEventListener("hashchange", () => { route.value = location.hash.replace("#", "") || "/programs"; });
 watch(selectedPrograms, value => localStorage.setItem("shortlist", JSON.stringify(value)), { deep: true });
 function ratio(p) { return p.registrationCount && p.actualEnrollment ? `${(p.registrationCount / p.actualEnrollment).toFixed(1)} : 1` : "未公开"; }
 function sourceTime(p) { return p.collectedAt ? new Date(p.collectedAt).toLocaleDateString("zh-CN") : "未记录"; }
@@ -67,13 +83,7 @@ watch(route, (v) => { if (v === "/charts") setTimeout(initCharts, 100); });
 window.addEventListener("resize", () => { [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => c?.resize()); });
 onMounted(() => {
   const saved = localStorage.getItem("user");
-  if (saved) {
-    try {
-      currentUser.value = JSON.parse(saved);
-      loggedIn.value = true;
-      mode.value = currentUser.value.role === "ADMIN" ? "admin" : "user";
-    } catch {}
-  }
+  if (saved) { try { currentUser.value = JSON.parse(saved); loggedIn.value = true; } catch {} }
   loadPrograms();
 });
 </script>
@@ -83,13 +93,9 @@ onMounted(() => {
   <main v-else class="app-shell">
     <header class="app-header">
       <button class="brand" @click="go('/programs')"><GraduationCap :size="22"/> 计算机考研择校</button>
-      <div class="mode-switch" v-if="currentUser?.role === 'ADMIN'">
-        <button :class="{ active: mode === 'user' }" @click="switchMode('user')"><User :size="15"/> 用户端</button>
-        <button :class="{ active: mode === 'admin' }" @click="switchMode('admin')"><Shield :size="15"/> 管理员</button>
-      </div>
       <nav><button v-for="item in nav" :key="item.path" :class="{ active: route === item.path }" @click="go(item.path)"><component :is="item.icon" :size="17"/>{{ item.label }}</button></nav>
       <div class="header-right">
-        <span class="user-info"><User :size="14"/> {{ currentUser?.username }} <small>({{ currentUser?.role === 'ADMIN' ? '管理员' : '用户' }})</small></span>
+        <span class="user-info"><User :size="14"/> {{ currentUser?.username }} <small v-if="isAdmin" style="color:#e6a23c">(管理员)</small><small v-else-if="isTest" style="color:#909399">(测试)</small></span>
         <button class="logout-btn" @click="logout"><LogOut :size="15"/> 退出</button>
       </div>
     </header>
@@ -120,17 +126,71 @@ onMounted(() => {
     </section>
 
     <section v-else-if="route === '/user/profile'" class="page-wrap user-page">
-      <div class="page-title"><div><p>USER CENTER</p><h1>个人中心</h1></div></div>
-      <div class="profile-layout">
-        <div class="profile-card"><div class="avatar"><User :size="40" color="#409eff"/></div><h3>考研学生</h3><p>预估 {{ profile.estimatedScore }} 分</p></div>
-        <div class="profile-form"><h3>学生画像</h3><div class="form-grid"><label>目标方向<select v-model="profile.targetMajor"><option>大数据技术与工程</option><option>计算机科学与技术</option><option>网络空间安全</option></select></label><label>预估初试分<input v-model.number="profile.estimatedScore" type="number"/></label><label>目标地区<input v-model="profile.preferredProvinces" placeholder="江苏,浙江"/></label><label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label></div></div>
+      <div class="profile-header-bar">
+        <div class="profile-banner"></div>
+        <div class="profile-info-row">
+          <div class="profile-avatar"><User :size="48" color="#fff"/></div>
+          <div class="profile-meta">
+            <h2>{{ currentUser?.username }}</h2>
+            <span class="role-badge" :class="currentUser?.role?.toLowerCase()">{{ currentUser?.role === 'ADMIN' ? '管理员' : currentUser?.role === 'TEST' ? '测试账号' : '考研学生' }}</span>
+            <span class="profile-join">预估 {{ profile.estimatedScore }} 分 · {{ profile.targetMajor }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="profile-body">
+        <div class="profile-sidebar">
+          <h3>我的数据</h3>
+          <ul class="stats-list">
+            <li><span class="stat-num">{{ selectedPrograms.length }}</span><span class="stat-desc">对比清单</span></li>
+            <li><span class="stat-num">{{ profile.estimatedScore }}</span><span class="stat-desc">预估分数</span></li>
+            <li><span class="stat-num">{{ profile.preferredProvinces.split(',').length }}</span><span class="stat-desc">目标省份</span></li>
+          </ul>
+          <button class="primary" style="width:100%;margin-top:12px" @click="go('/programs')">去检索</button>
+        </div>
+        <div class="profile-main">
+          <h3>个人画像设置</h3>
+          <div class="form-grid">
+            <label>目标方向<select v-model="profile.targetMajor"><option>大数据技术与工程</option><option>计算机科学与技术</option><option>计算机技术</option><option>网络空间安全</option></select></label>
+            <label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label>
+            <label>目标地区<input v-model="profile.preferredProvinces" placeholder="江苏,浙江"/></label>
+            <label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label>
+          </div>
+          <h3 style="margin-top:20px">快捷入口</h3>
+          <div class="quick-links">
+            <button class="plain" @click="go('/compare')">对比清单</button>
+            <button class="plain" @click="go('/charts')">数据可视化</button>
+            <button class="plain" @click="go('/recommend')">择校建议</button>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section v-else-if="route === '/user/favorites'" class="page-wrap user-page">
-      <div class="page-title"><div><p>FAVORITES</p><h1>我的收藏 <small>{{ selectedPrograms.length }} / 5</small></h1></div><button class="plain" @click="go('/programs')">去检索</button></div>
-      <div v-if="!selectedPrograms.length" class="empty"><Bookmark :size="25"/>还没有收藏，去检索页添加。</div>
-      <div v-else class="fav-grid"><article v-for="p in selectedPrograms" :key="p.id" class="fav-card"><h3>{{ p.universityName }}</h3><p>{{ p.majorCode }} · {{ p.majorName }}</p><div class="tags"><span>{{ p.province }}</span><span>{{ p.admissionYear }}年</span></div><dl><div><dt>复试线</dt><dd>{{ p.reexaminationLine ?? '未公开' }}</dd></div><div><dt>录取</dt><dd>{{ p.actualEnrollment ?? '-' }}</dd></div><div><dt>报录比</dt><dd>{{ ratio(p) }}</dd></div></dl><button class="icon danger" @click="toggle(p)">移除</button></article></div>
+    <!-- ========== TEST角色：API调试 ========== -->
+    <section v-else-if="route === '/test/api'" class="page-wrap admin-page">
+      <div class="page-title"><div><p>API DEBUGGER</p><h1>API 接口调试</h1><span>测试后端API接口，查看返回数据。</span></div></div>
+      <div class="api-debugger">
+        <div class="api-form">
+          <div class="api-row">
+            <select v-model="apiTestMethod" class="api-method"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>
+            <input v-model="apiTestUrl" class="api-url" placeholder="输入API路径"/>
+            <button class="primary" @click="runApiTest" :disabled="apiTestLoading">{{ apiTestLoading ? '请求中...' : '发送' }}</button>
+          </div>
+          <div v-if="apiTestMethod === 'POST' || apiTestMethod === 'PUT'" class="api-body">
+            <label>请求体 (JSON)</label>
+            <textarea v-model="apiTestBody" rows="6" placeholder='{"key": "value"}'></textarea>
+          </div>
+          <div class="api-presets">
+            <span>快捷请求：</span>
+            <button class="plain" @click="apiTestUrl='/api/v1/programs?page=0&pageSize=5'; apiTestMethod='GET'">招生列表</button>
+            <button class="plain" @click="apiTestUrl='/api/v1/programs/1'; apiTestMethod='GET'">单条记录</button>
+            <button class="plain" @click="apiTestUrl='/recommendation/api/v1/recommendations'; apiTestMethod='POST'; apiTestBody=JSON.stringify({profile:{estimated_score:340,target_major:'计算机科学与技术',preferred_provinces:['北京'],risk_preference:'BALANCED'},programs:[],weights:{score:45,competition:20,region:15,major:15}},null,2)">推荐接口</button>
+          </div>
+        </div>
+        <div v-if="apiTestResult" class="api-result">
+          <div class="result-header"><span :class="apiTestResult.status === 200 ? 'status-ok' : 'status-err'">HTTP {{ apiTestResult.status }} {{ apiTestResult.statusText }}</span></div>
+          <pre class="result-body">{{ apiTestResult.body }}</pre>
+        </div>
+      </div>
     </section>
 
     <!-- ========== 管理员端 ========== -->
