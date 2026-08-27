@@ -1,8 +1,8 @@
 <script setup>
-import { computed, onMounted, ref, watch, nextTick } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { BarChart3, Bookmark, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Database, ExternalLink, GraduationCap, LayoutDashboard, LogOut, MapPin, PieChart, Search, Settings, Shield, SlidersHorizontal, Sparkles, Upload, User, Users, FileText, X } from "lucide-vue-next";
-import * as echarts from "echarts";
 import LoginPage from "./views/LoginPage.vue";
+import DataCharts from "./views/DataCharts.vue";
 
 const apiBase = "/api/v1";
 const recommendationUrl = "/recommendation/api/v1/recommendations";
@@ -157,136 +157,6 @@ function submitSearch() { page.value = 0; loadPrograms(); }
 async function getRecommendations() { if (!candidatePrograms.value.length) return; isRecommending.value = true; const requestProfile = { estimated_score: profile.value.estimatedScore, target_major: profile.value.targetMajor, preferred_provinces: profile.value.preferredProvinces.split(",").map(x => x.trim()).filter(Boolean), risk_preference: profile.value.riskPreference }; const requestPrograms = candidatePrograms.value.map(p => ({ id:p.id, university_name:p.universityName, major_name:p.majorName, province:p.province, reexamination_line:p.reexaminationLine, national_line:p.nationalLine, actual_enrollment:p.actualEnrollment, registration_count:p.registrationCount, admission_year:p.admissionYear, source_name:p.sourceName })); try { const res = await fetch(recommendationUrl, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({profile:requestProfile, programs:requestPrograms, weights:weights.value}) }); if (!res.ok) throw new Error(); recommendations.value = (await res.json()).items; } finally { isRecommending.value = false; } }
 function openRecommend() { go("/recommend"); setTimeout(getRecommendations, 0); }
 
-let provinceChart, majorChart, yearChart, enrollmentChart;
-const chartsLoaded = ref(false);
-const chartsLoading = ref(false);
-async function initCharts() {
-  chartsLoading.value = true;
-  try {
-    const all = [];
-    let pg = 0;
-    while (true) {
-      const res = await fetch(`${apiBase}/programs?page=${pg}&pageSize=200`);
-      if (!res.ok) break;
-      const b = await res.json();
-      all.push(...b.items);
-      if (all.length >= b.total) break;
-      pg++;
-    }
-    [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => { try { c?.dispose(); } catch {} });
-    provinceChart = majorChart = yearChart = enrollmentChart = null;
-    chartsLoaded.value = true;
-    await nextTick();
-    await new Promise(r => requestAnimationFrame(r));
-    await new Promise(r => setTimeout(r, 50));
-    renderCharts(all);
-  } catch(e) { console.error("Chart load error:", e); } finally { chartsLoading.value = false; }
-}
-function renderCharts(programs) {
-  const provMap = {}, majorMap = {}, yearMap = {}, uniEnroll = {};
-  programs.forEach(p => {
-    provMap[p.province] = (provMap[p.province] || 0) + 1;
-    const mc = (p.majorCode || "").substring(0, 4);
-    majorMap[mc] = (majorMap[mc] || 0) + 1;
-    yearMap[p.admissionYear] = (yearMap[p.admissionYear] || 0) + 1;
-    const n = p.universityName;
-    if (!uniEnroll[n]) uniEnroll[n] = { e: 0, r: 0 };
-    if (p.actualEnrollment) uniEnroll[n].e += p.actualEnrollment;
-    if (p.registrationCount) uniEnroll[n].r += p.registrationCount;
-  });
-  renderProvinceChart(provMap);
-  renderMajorChart(majorMap);
-  renderYearChart(yearMap, programs);
-  renderEnrollChart(uniEnroll);
-  setTimeout(() => { window.dispatchEvent(new Event("resize")); }, 200);
-}
-function renderProvinceChart(data) {
-  try {
-    const el = document.getElementById("chart-province");
-    if (!el) { console.warn("chart-province element not found"); return; }
-    if (provinceChart) provinceChart.dispose();
-    provinceChart = echarts.init(el);
-    const s = Object.entries(data).sort((a, b) => b[1] - a[1]);
-    provinceChart.setOption({
-      title: { text: "各省份数据分布", left: "center", textStyle: { fontSize: 14 } },
-      tooltip: { trigger: "axis" },
-      xAxis: { type: "category", data: s.map(x => x[0]), axisLabel: { rotate: 45, fontSize: 11 } },
-      yAxis: { type: "value" },
-      series: [{ type: "bar", data: s.map(x => x[1]), itemStyle: { color: "#409eff" } }],
-      grid: { left: 50, right: 20, bottom: 80, top: 40 }
-    });
-  } catch(e) { console.error("Province chart error:", e); }
-}
-function renderMajorChart(data) {
-  try {
-    const el = document.getElementById("chart-major");
-    if (!el) { console.warn("chart-major element not found"); return; }
-    if (majorChart) majorChart.dispose();
-    majorChart = echarts.init(el);
-    const lbl = { "0812": "计算机科学与技术", "0835": "软件工程", "0839": "网络空间安全", "0854": "电子信息", "085404": "计算机技术", "085405": "软件工程", "085410": "人工智能", "085411": "大数据", "085412": "网络与信息安全" };
-    majorChart.setOption({
-      title: { text: "专业分布", left: "center", textStyle: { fontSize: 14 } },
-      tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
-      legend: { bottom: 0 },
-      series: [{
-        type: "pie", radius: ["30%", "55%"],
-        label: { formatter: "{b}\n{d}%" },
-        data: Object.entries(data).map(([k, v]) => ({ name: lbl[k] || k, value: v }))
-      }]
-    });
-  } catch(e) { console.error("Major chart error:", e); }
-}
-function renderYearChart(yearMap, programs) {
-  try {
-    const el = document.getElementById("chart-year");
-    if (!el) { console.warn("chart-year element not found"); return; }
-    if (yearChart) yearChart.dispose();
-    yearChart = echarts.init(el);
-    const years = Object.keys(yearMap).sort();
-    const enr = {}, reg = {};
-    programs.forEach(p => {
-      const y = p.admissionYear;
-      if (p.actualEnrollment) enr[y] = (enr[y] || 0) + p.actualEnrollment;
-      if (p.registrationCount) reg[y] = (reg[y] || 0) + p.registrationCount;
-    });
-    yearChart.setOption({
-      title: { text: "年度数据与报录比", left: "center", textStyle: { fontSize: 14 } },
-      tooltip: { trigger: "axis" },
-      legend: { bottom: 0, data: ["记录数", "录取人数", "报录比"] },
-      xAxis: { type: "category", data: years },
-      yAxis: [{ type: "value" }, { type: "value", name: "报录比", min: 0 }],
-      series: [
-        { name: "记录数", type: "bar", data: years.map(y => yearMap[y]) },
-        { name: "录取人数", type: "bar", data: years.map(y => enr[y] || 0) },
-        { name: "报录比", type: "line", yAxisIndex: 1, data: years.map(y => reg[y] && enr[y] ? +(reg[y] / enr[y]).toFixed(2) : null), itemStyle: { color: "#e6a23c" } }
-      ],
-      grid: { left: 50, right: 50, bottom: 50, top: 40 }
-    });
-  } catch(e) { console.error("Year chart error:", e); }
-}
-function renderEnrollChart(uniEnroll) {
-  try {
-    const el = document.getElementById("chart-enrollment");
-    if (!el) { console.warn("chart-enrollment element not found"); return; }
-    if (enrollmentChart) enrollmentChart.dispose();
-    enrollmentChart = echarts.init(el);
-    const s = Object.entries(uniEnroll).filter(([, v]) => v.e > 0).sort((a, b) => b[1].e - a[1].e).slice(0, 12);
-    enrollmentChart.setOption({
-      title: { text: "TOP12 高校录取规模", left: "center", textStyle: { fontSize: 14 } },
-      tooltip: { trigger: "axis" },
-      legend: { bottom: 0, data: ["录取", "报名"] },
-      xAxis: { type: "category", data: s.map(x => x[0].length > 8 ? x[0].substring(0, 8) + ".." : x[0]), axisLabel: { rotate: 30, fontSize: 11 } },
-      yAxis: { type: "value" },
-      series: [
-        { name: "录取", type: "bar", data: s.map(x => x[1].e), itemStyle: { color: "#67c23a" } },
-        { name: "报名", type: "bar", data: s.map(x => x[1].r), itemStyle: { color: "#f56c6c" } }
-      ],
-      grid: { left: 50, right: 20, bottom: 60, top: 40 }
-    });
-  } catch(e) { console.error("Enrollment chart error:", e); }
-}
-watch(route, (v) => { if (v === "/charts") setTimeout(initCharts, 100); });
-window.addEventListener("resize", () => { [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => c?.resize()); });
 onMounted(() => {
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".province-combo")) provinceDropdownOpen.value = false;
@@ -294,7 +164,6 @@ onMounted(() => {
   const saved = localStorage.getItem("user");
   if (saved) { try { currentUser.value = JSON.parse(saved); loggedIn.value = true; } catch {} }
   loadPrograms();
-  if (route.value === "/charts") setTimeout(initCharts, 300);
 });
 </script>
 
@@ -363,10 +232,7 @@ onMounted(() => {
       <div v-else class="comparison"><table><thead><tr><th>院校专业</th><th>年份</th><th>复试线</th><th>计划</th><th>报录比</th><th>来源</th><th></th></tr></thead><tbody><tr v-for="p in selectedPrograms" :key="p.id"><td><b>{{ p.universityName }}</b><span>{{ p.majorCode }} · {{ p.majorName }}</span></td><td>{{ p.admissionYear }}</td><td>{{ p.reexaminationLine ?? '未公开' }}</td><td>{{ p.plannedEnrollment ?? '未公开' }}</td><td>{{ ratio(p) }}</td><td>{{ p.sourceName }}</td><td><button class="icon" @click="toggle(p)"><X :size="16"/></button></td></tr></tbody></table></div>
     </section>
 
-    <section v-else-if="route === '/charts'" class="page-wrap charts-page">
-      <div class="page-title"><div><p>DATA ANALYTICS</p><h1>数据可视化</h1><span>基于全部已发布数据的统计分析图表。</span></div><button class="plain" @click="initCharts()" :disabled="chartsLoading">{{ chartsLoading ? '加载中...' : '刷新图表' }}</button></div>
-      <div class="chart-grid"><div class="chart-card"><div id="chart-province" class="chart-box"></div></div><div class="chart-card"><div id="chart-major" class="chart-box"></div></div><div class="chart-card"><div id="chart-year" class="chart-box"></div></div><div class="chart-card"><div id="chart-enrollment" class="chart-box"></div></div></div>
-    </section>
+    <DataCharts v-else-if="route === '/charts'" />
 
     <section v-else-if="route === '/recommend'" class="page-wrap recommendation">
       <div class="page-title"><div><p>DECISION SUPPORT</p><h1>择校建议</h1><span>模型会解释评分组成，但不构成录取承诺。</span></div><button class="primary" :disabled="isRecommending || !candidatePrograms.length" @click="getRecommendations"><Sparkles :size="17"/>{{ isRecommending ? '计算中' : '更新建议' }}</button></div>
