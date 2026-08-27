@@ -158,7 +158,10 @@ function openRecommend() { go("/recommend"); setTimeout(getRecommendations, 0); 
 
 let provinceChart, majorChart, yearChart, enrollmentChart;
 const chartsLoaded = ref(false);
+const chartsLoading = ref(false);
 async function initCharts() {
+  if (chartsLoading.value) return;
+  chartsLoading.value = true;
   try {
     const all = [];
     let pg = 0;
@@ -170,15 +173,11 @@ async function initCharts() {
       if (all.length >= b.total) break;
       pg++;
     }
-    chartsLoaded.value = false;
-    await nextTick();
+    [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => { try { c?.dispose(); } catch {} });
+    provinceChart = majorChart = yearChart = enrollmentChart = null;
+    renderCharts(all);
     chartsLoaded.value = true;
-    await nextTick();
-    setTimeout(() => {
-      renderCharts(all);
-      window.dispatchEvent(new Event("resize"));
-    }, 300);
-  } catch(e) { console.error("Chart load error:", e); chartsLoaded.value = true; }
+  } catch(e) { console.error("Chart load error:", e); } finally { chartsLoading.value = false; }
 }
 function renderCharts(programs) {
   const provMap = {}, majorMap = {}, yearMap = {}, uniEnroll = {};
@@ -196,6 +195,7 @@ function renderCharts(programs) {
   renderMajorChart(majorMap);
   renderYearChart(yearMap, programs);
   renderEnrollChart(uniEnroll);
+  setTimeout(() => { window.dispatchEvent(new Event("resize")); }, 100);
 }
 function renderProvinceChart(data) {
   const el = document.getElementById("chart-province");
@@ -274,7 +274,7 @@ function renderEnrollChart(uniEnroll) {
     grid: { left: 50, right: 20, bottom: 60, top: 40 }
   });
 }
-watch(route, (v) => { if (v === "/charts") { chartsLoaded.value = false; setTimeout(initCharts, 200); } });
+watch(route, (v) => { if (v === "/charts") setTimeout(initCharts, 100); });
 window.addEventListener("resize", () => { [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => c?.resize()); });
 onMounted(() => {
   document.addEventListener("click", (e) => {
@@ -353,9 +353,8 @@ onMounted(() => {
     </section>
 
     <section v-else-if="route === '/charts'" class="page-wrap charts-page">
-      <div class="page-title"><div><p>DATA ANALYTICS</p><h1>数据可视化</h1><span>基于全部已发布数据的统计分析图表。</span></div><button class="plain" @click="chartsLoaded=false;initCharts()">刷新图表</button></div>
-      <div v-if="!chartsLoaded" class="chart-loading"><div class="spinner"></div><span>加载图表数据中...</span></div>
-      <div v-if="chartsLoaded" class="chart-grid"><div class="chart-card"><div id="chart-province" class="chart-box"></div></div><div class="chart-card"><div id="chart-major" class="chart-box"></div></div><div class="chart-card"><div id="chart-year" class="chart-box"></div></div><div class="chart-card"><div id="chart-enrollment" class="chart-box"></div></div></div>
+      <div class="page-title"><div><p>DATA ANALYTICS</p><h1>数据可视化</h1><span>基于全部已发布数据的统计分析图表。</span></div><button class="plain" @click="initCharts()" :disabled="chartsLoading">{{ chartsLoading ? '加载中...' : '刷新图表' }}</button></div>
+      <div class="chart-grid"><div class="chart-card"><div id="chart-province" class="chart-box"></div></div><div class="chart-card"><div id="chart-major" class="chart-box"></div></div><div class="chart-card"><div id="chart-year" class="chart-box"></div></div><div class="chart-card"><div id="chart-enrollment" class="chart-box"></div></div></div>
     </section>
 
     <section v-else-if="route === '/recommend'" class="page-wrap recommendation">
