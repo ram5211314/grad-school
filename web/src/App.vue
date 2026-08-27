@@ -26,9 +26,12 @@ const programs = ref([]); const total = ref(0); const loading = ref(false); cons
 const selectedPrograms = ref(JSON.parse(localStorage.getItem("shortlist") || "[]"));
 const recommendations = ref([]); const isRecommending = ref(false); const page = ref(0);
 const filters = ref({ keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" });
-const profile = ref({ targetMajor: "计算机科学与技术", estimatedScore: 340, preferredProvinces: "江苏,浙江", riskPreference: "BALANCED" });
+const profile = ref({ targetMajor: "0812", estimatedScore: 340, preferredProvinces: "江苏,浙江", riskPreference: "BALANCED" });
 const weights = ref({ score: 45, competition: 20, region: 15, major: 15 });
 const pageSize = 20;
+const allProvinces = ["北京","上海","天津","重庆","江苏","浙江","湖北","四川","陕西","广东","辽宁","福建","山东","河北","湖南","安徽","吉林","黑龙江","广西","甘肃","海南","江西","贵州","新疆","宁夏"];
+const selectedProvinces = ref(profile.value.preferredProvinces.split(",").filter(Boolean));
+watch(selectedProvinces, (v) => { profile.value.preferredProvinces = v.join(","); });
 const apiTestUrl = ref("/api/v1/programs");
 const apiTestMethod = ref("GET");
 const apiTestBody = ref('{ "page": 0, "pageSize": 5 }');
@@ -60,7 +63,7 @@ const isTest = computed(() => currentUser.value?.role === "TEST");
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const candidatePrograms = computed(() => selectedPrograms.value.length ? selectedPrograms.value : programs.value);
 
-// 按高校+专业分组
+// 按高校+专业分组，同一年份聚合（取最高复试线、最大录取、最大报名）
 const groupedPrograms = computed(() => {
   const groups = {};
   programs.value.forEach(p => {
@@ -74,23 +77,35 @@ const groupedPrograms = computed(() => {
         level: p.universityLevel,
         degreeType: p.degreeType,
         examSubjects: p.examSubjects,
-        years: []
+        years: {}
       };
     }
-    groups[key].years.push({
-      id: p.id,
-      year: p.admissionYear,
-      reexLine: p.reexaminationLine,
-      planned: p.plannedEnrollment,
-      actual: p.actualEnrollment,
-      reg: p.registrationCount,
-      national: p.nationalLine,
-      source: p.sourceName,
-      remarks: p.remarks
-    });
+    const y = p.admissionYear;
+    if (!groups[key].years[y]) {
+      groups[key].years[y] = {
+        year: y,
+        reexLine: p.reexaminationLine,
+        planned: p.plannedEnrollment,
+        actual: p.actualEnrollment,
+        reg: p.registrationCount,
+        national: p.nationalLine,
+        source: p.sourceName,
+        remarks: p.remarks
+      };
+    } else {
+      const existing = groups[key].years[y];
+      if (p.reexaminationLine && (!existing.reexLine || p.reexaminationLine > existing.reexLine)) existing.reexLine = p.reexaminationLine;
+      if (p.actualEnrollment && (!existing.actual || p.actualEnrollment > existing.actual)) existing.actual = p.actualEnrollment;
+      if (p.registrationCount && (!existing.reg || p.registrationCount > existing.reg)) existing.reg = p.registrationCount;
+      if (p.plannedEnrollment && !existing.planned) existing.planned = p.plannedEnrollment;
+      if (p.nationalLine && !existing.national) existing.national = p.nationalLine;
+      if (p.sourceName && !existing.source) existing.source = p.sourceName;
+      if (p.remarks && !existing.remarks) existing.remarks = p.remarks;
+    }
   });
-  // 年份排序
-  Object.values(groups).forEach(g => g.years.sort((a, b) => b.year - a.year));
+  Object.values(groups).forEach(g => {
+    g.years = Object.values(g.years).sort((a, b) => b.year - a.year);
+  });
   return Object.values(groups);
 });
 
@@ -115,8 +130,6 @@ function openRecommend() { go("/recommend"); setTimeout(getRecommendations, 0); 
 let provinceChart, majorChart, yearChart, enrollmentChart;
 const chartsLoaded = ref(false);
 async function initCharts() {
-  if (chartsLoaded.value) return;
-  chartsLoaded.value = true;
   try {
     const all = [];
     let pg = 0;
@@ -128,8 +141,12 @@ async function initCharts() {
       if (all.length >= b.total) break;
       pg++;
     }
-    renderCharts(all);
-  } catch(e) { console.error("Chart load error:", e); }
+    chartsLoaded.value = false;
+    setTimeout(() => {
+      chartsLoaded.value = true;
+      setTimeout(() => renderCharts(all), 150);
+    }, 50);
+  } catch(e) { console.error("Chart load error:", e); chartsLoaded.value = true; }
 }
 function renderCharts(programs) {
   const provMap = {}, majorMap = {}, yearMap = {}, uniEnroll = {};
@@ -251,7 +268,7 @@ onMounted(() => {
     <!-- ========== 用户端 ========== -->
     <section v-if="route === '/programs'" class="page-wrap">
       <div class="page-title"><div><p>PROGRAM DIRECTORY</p><h1>招生信息检索</h1><span>按高校+专业分组展示，点击展开查看各年份数据。</span></div><button class="primary" @click="openRecommend"><Sparkles :size="17"/>生成择校建议</button></div>
-      <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校或专业名称"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>陕西</option><option>辽宁</option><option>福建</option><option>广东</option><option>湖南</option><option>安徽</option><option>山东</option><option>河北</option><option>黑龙江</option><option>天津</option><option>吉林</option><option>重庆</option><option>甘肃</option><option>广西</option></select></label><label><select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机</option><option value="0835">0835 软件工程</option><option value="0839">0839 网安</option><option value="0854">0854 电子信息</option></select></label><label><SlidersHorizontal :size="16"/><select v-model="filters.examKeyword"><option value="">全部专业课</option><option value="408">408</option><option value="数学二">数学二</option><option value="数学一">数学一</option></select></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
+      <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校或专业名称"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>天津</option><option>重庆</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>陕西</option><option>广东</option><option>辽宁</option><option>福建</option><option>山东</option><option>河北</option><option>湖南</option><option>安徽</option><option>吉林</option><option>黑龙江</option><option>广西</option><option>甘肃</option><option>海南</option><option>江西</option><option>贵州</option><option>新疆</option><option>宁夏</option></select></label><label><select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机</option><option value="0835">0835 软件工程</option><option value="0839">0839 网安</option><option value="0854">0854 电子信息</option></select></label><label><SlidersHorizontal :size="16"/><select v-model="filters.examKeyword"><option value="">全部专业课</option><option value="408">408</option><option value="数学二">数学二</option><option value="数学一">数学一</option></select></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
       <p v-if="apiError" class="notice">业务服务不可用。</p><p class="result-meta">{{ total }} 条记录 · {{ groupedPrograms.length }} 个高校专业组 · 第 {{ page + 1 }} / {{ totalPages }} 页</p>
       <div class="grouped-programs">
         <article v-for="g in groupedPrograms" :key="g.universityName + g.majorCode" class="group-card">
@@ -277,7 +294,7 @@ onMounted(() => {
               <table>
                 <thead><tr><th>年份</th><th>复试线</th><th>国家线</th><th>计划招生</th><th>录取</th><th>报名</th><th>报录比</th></tr></thead>
                 <tbody>
-                  <tr v-for="y in g.years" :key="y.id">
+                  <tr v-for="y in g.years" :key="y.year">
                     <td><b>{{ y.year }}</b></td>
                     <td :class="y.reexLine ? 'has-data' : ''">{{ y.reexLine ?? '-' }}</td>
                     <td :class="y.national ? 'has-data' : ''">{{ y.national ?? '-' }}</td>
@@ -302,13 +319,14 @@ onMounted(() => {
     </section>
 
     <section v-else-if="route === '/charts'" class="page-wrap charts-page">
-      <div class="page-title"><div><p>DATA ANALYTICS</p><h1>数据可视化</h1><span>基于全部已发布数据的统计分析图表。</span></div></div>
-      <div class="chart-grid"><div class="chart-card"><div id="chart-province" class="chart-box"></div></div><div class="chart-card"><div id="chart-major" class="chart-box"></div></div><div class="chart-card"><div id="chart-year" class="chart-box"></div></div><div class="chart-card"><div id="chart-enrollment" class="chart-box"></div></div></div>
+      <div class="page-title"><div><p>DATA ANALYTICS</p><h1>数据可视化</h1><span>基于全部已发布数据的统计分析图表。</span></div><button class="plain" @click="chartsLoaded=false;initCharts()">刷新图表</button></div>
+      <div v-if="!chartsLoaded" class="chart-loading"><div class="spinner"></div><span>加载图表数据中...</span></div>
+      <div v-show="chartsLoaded" class="chart-grid"><div class="chart-card"><div id="chart-province" class="chart-box"></div></div><div class="chart-card"><div id="chart-major" class="chart-box"></div></div><div class="chart-card"><div id="chart-year" class="chart-box"></div></div><div class="chart-card"><div id="chart-enrollment" class="chart-box"></div></div></div>
     </section>
 
     <section v-else-if="route === '/recommend'" class="page-wrap recommendation">
       <div class="page-title"><div><p>DECISION SUPPORT</p><h1>择校建议</h1><span>模型会解释评分组成，但不构成录取承诺。</span></div><button class="primary" :disabled="isRecommending || !candidatePrograms.length" @click="getRecommendations"><Sparkles :size="17"/>{{ isRecommending ? '计算中' : '更新建议' }}</button></div>
-      <div class="recommend-layout"><aside class="recommend-form"><h2>个人画像</h2><label>目标方向<select v-model="profile.targetMajor"><option>大数据技术与工程</option><option>计算机科学与技术</option><option>计算机技术</option><option>网络空间安全</option></select></label><label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label><label>目标地区<input v-model="profile.preferredProvinces" placeholder="江苏,浙江"/></label><label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label><h2>权重配置</h2><label v-for="(value, key) in weights" :key="key">{{ ({ score: '分数匹配', competition: '竞争度', region: '地区', major: '专业' })[key] }}<input v-model.number="weights[key]" type="range" min="0" max="60"/><span>{{ value }}</span></label><p class="candidate-note">候选集：{{ candidatePrograms.length }} 项</p></aside><div><div v-if="!recommendations.length" class="empty"><Sparkles :size="25"/>填写画像后生成建议</div><div v-else class="recommendations"><article v-for="item in recommendations" :key="`${item.id}-${item.major_name}`"><div><span class="tier" :class="item.tier">{{ item.tier }}</span><b>{{ item.recommendation_score }}</b></div><h2>{{ item.university_name }}</h2><p>{{ item.major_name }} · {{ item.province }}</p><ul><li v-for="reason in item.reasons" :key="reason">{{ reason }}</li></ul><footer>{{ item.admission_year }} 年 · {{ item.source_name || '来源待补充' }} · {{ item.model_version }}</footer></article></div><p v-if="recommendations.length" class="disclaimer">仅供择校参考，不构成录取承诺。</p></div></div>
+      <div class="recommend-layout"><aside class="recommend-form"><h2>个人画像</h2><label>目标方向<select v-model="profile.targetMajor"><option value="0812">0812 计算机科学与技术</option><option value="0835">0835 软件工程</option><option value="0839">0839 网络空间安全</option><option value="0854">0854 电子信息</option></select></label><label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label><label>目标地区<div class="province-select"><label v-for="p in allProvinces" :key="p" class="province-check"><input type="checkbox" :value="p" v-model="selectedProvinces"/><span>{{ p }}</span></label></div></label><label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label><h2>权重配置</h2><label v-for="(value, key) in weights" :key="key">{{ ({ score: '分数匹配', competition: '竞争度', region: '地区', major: '专业' })[key] }}<input v-model.number="weights[key]" type="range" min="0" max="60"/><span>{{ value }}</span></label><p class="candidate-note">候选集：{{ candidatePrograms.length }} 项</p></aside><div><div v-if="!recommendations.length" class="empty"><Sparkles :size="25"/>填写画像后生成建议</div><div v-else class="recommendations"><article v-for="item in recommendations" :key="`${item.id}-${item.major_name}`"><div><span class="tier" :class="item.tier">{{ item.tier }}</span><b>{{ item.recommendation_score }}</b></div><h2>{{ item.university_name }}</h2><p>{{ item.major_name }} · {{ item.province }}</p><ul><li v-for="reason in item.reasons" :key="reason">{{ reason }}</li></ul><footer>{{ item.admission_year }} 年 · {{ item.source_name || '来源待补充' }} · {{ item.model_version }}</footer></article></div><p v-if="recommendations.length" class="disclaimer">仅供择校参考，不构成录取承诺。</p></div></div>
     </section>
 
     <section v-else-if="route === '/user/profile'" class="page-wrap user-page">
@@ -329,16 +347,16 @@ onMounted(() => {
           <ul class="stats-list">
             <li><span class="stat-num">{{ selectedPrograms.length }}</span><span class="stat-desc">对比清单</span></li>
             <li><span class="stat-num">{{ profile.estimatedScore }}</span><span class="stat-desc">预估分数</span></li>
-            <li><span class="stat-num">{{ profile.preferredProvinces.split(',').length }}</span><span class="stat-desc">目标省份</span></li>
+            <li><span class="stat-num">{{ selectedProvinces.length }}</span><span class="stat-desc">目标省份</span></li>
           </ul>
           <button class="primary" style="width:100%;margin-top:12px" @click="go('/programs')">去检索</button>
         </div>
         <div class="profile-main">
           <h3>个人画像设置</h3>
           <div class="form-grid">
-            <label>目标方向<select v-model="profile.targetMajor"><option>大数据技术与工程</option><option>计算机科学与技术</option><option>计算机技术</option><option>网络空间安全</option></select></label>
+            <label>目标方向<select v-model="profile.targetMajor"><option value="0812">0812 计算机科学与技术</option><option value="0835">0835 软件工程</option><option value="0839">0839 网络空间安全</option><option value="0854">0854 电子信息</option></select></label>
             <label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label>
-            <label>目标地区<input v-model="profile.preferredProvinces" placeholder="江苏,浙江"/></label>
+            <label>目标地区<div class="province-select"><label v-for="p in allProvinces" :key="p" class="province-check"><input type="checkbox" :value="p" v-model="selectedProvinces"/><span>{{ p }}</span></label></div></label>
             <label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label>
           </div>
           <h3 style="margin-top:20px">快捷入口</h3>

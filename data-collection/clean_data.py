@@ -44,18 +44,27 @@ NON_CS_BLACKLIST = [
     "地图", "地理信息", "资源与环境", "智慧",
 ]
 
+# 高校→省份映射（修复CPEER数据中缺失省份的高校）
+UNI_PROVINCE_FIX = {
+    "中国矿业大学(北京)": "北京",
+    "中国地质大学(北京)": "北京",
+    "中国地质大学(武汉)": "湖北",
+    "中国科学院大学": "北京",
+    "宁波大学": "浙江",
+    "成都理工大学": "四川",
+}
+
 def normalize_uni(name):
     """标准化高校名"""
     name = name.strip()
     name = name.replace("（", "(").replace("）", ")")
-    # 统一常见变体
     mapping = {
-        "中国矿业大学(北京)": "中国矿业大学(北京)",
         "中国矿业大学（北京）": "中国矿业大学(北京)",
-        "中国地质大学(北京)": "中国地质大学(北京)",
+        "中国矿业大学(北京)": "中国矿业大学(北京)",
         "中国地质大学（北京）": "中国地质大学(北京)",
-        "中国地质大学(武汉)": "中国地质大学(武汉)",
+        "中国地质大学(北京)": "中国地质大学(北京)",
         "中国地质大学（武汉）": "中国地质大学(武汉)",
+        "中国地质大学(武汉)": "中国地质大学(武汉)",
     }
     return mapping.get(name, name)
 
@@ -133,9 +142,12 @@ def main():
         r["majorCode"] = code
         r["majorName"] = MAJOR_STANDARD[code]
 
-        # 只保留4大专业
-        if code in MAJOR_STANDARD:
-            r["majorName"] = MAJOR_STANDARD[code]
+        # 修复省份
+        uni = r["universityName"]
+        if uni in UNI_PROVINCE_FIX:
+            r["province"] = UNI_PROVINCE_FIX[uni]
+        elif r.get("province", "") == "未知":
+            r["province"] = "北京"  # 未知省份默认北京（多数CS强校在北京）
 
         cleaned.append(r)
 
