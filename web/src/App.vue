@@ -32,6 +32,35 @@ const pageSize = 20;
 const allProvinces = ["北京","上海","天津","重庆","江苏","浙江","湖北","四川","陕西","广东","辽宁","福建","山东","河北","湖南","安徽","吉林","黑龙江","广西","甘肃","海南","江西","贵州","新疆","宁夏"];
 const selectedProvinces = ref(profile.value.preferredProvinces.split(",").filter(Boolean));
 watch(selectedProvinces, (v) => { profile.value.preferredProvinces = v.join(","); });
+const provinceSearch = ref("");
+const provinceDropdownOpen = ref(false);
+const filteredProvinces = computed(() => {
+  const q = provinceSearch.value.trim().toLowerCase();
+  return allProvinces.filter(p => !selectedProvinces.value.includes(p) && ( !q || p.includes(q) ));
+});
+function addProvince(p) {
+  if (!selectedProvinces.value.includes(p)) selectedProvinces.value.push(p);
+  provinceSearch.value = "";
+}
+function removeProvince(p) {
+  selectedProvinces.value = selectedProvinces.value.filter(x => x !== p);
+}
+function onProvinceInput() {
+  provinceDropdownOpen.value = true;
+}
+function onProvinceKeydown(e) {
+  if (e.key === "Enter" && provinceSearch.value.trim()) {
+    e.preventDefault();
+    const v = provinceSearch.value.trim();
+    if (allProvinces.includes(v) && !selectedProvinces.value.includes(v)) {
+      selectedProvinces.value.push(v);
+    }
+    provinceSearch.value = "";
+  }
+  if (e.key === "Backspace" && !provinceSearch.value && selectedProvinces.value.length) {
+    selectedProvinces.value.pop();
+  }
+}
 const apiTestUrl = ref("/api/v1/programs");
 const apiTestMethod = ref("GET");
 const apiTestBody = ref('{ "page": 0, "pageSize": 5 }');
@@ -142,10 +171,13 @@ async function initCharts() {
       pg++;
     }
     chartsLoaded.value = false;
+    await nextTick();
+    chartsLoaded.value = true;
+    await nextTick();
     setTimeout(() => {
-      chartsLoaded.value = true;
-      setTimeout(() => renderCharts(all), 150);
-    }, 50);
+      renderCharts(all);
+      setTimeout(() => window.dispatchEvent(new Event("resize")), 50);
+    }, 200);
   } catch(e) { console.error("Chart load error:", e); chartsLoaded.value = true; }
 }
 function renderCharts(programs) {
@@ -247,6 +279,9 @@ function renderEnrollChart(uniEnroll) {
 watch(route, (v) => { if (v === "/charts") { chartsLoaded.value = false; setTimeout(initCharts, 200); } });
 window.addEventListener("resize", () => { [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => c?.resize()); });
 onMounted(() => {
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".province-combo")) provinceDropdownOpen.value = false;
+  });
   const saved = localStorage.getItem("user");
   if (saved) { try { currentUser.value = JSON.parse(saved); loggedIn.value = true; } catch {} }
   loadPrograms();
@@ -321,12 +356,12 @@ onMounted(() => {
     <section v-else-if="route === '/charts'" class="page-wrap charts-page">
       <div class="page-title"><div><p>DATA ANALYTICS</p><h1>数据可视化</h1><span>基于全部已发布数据的统计分析图表。</span></div><button class="plain" @click="chartsLoaded=false;initCharts()">刷新图表</button></div>
       <div v-if="!chartsLoaded" class="chart-loading"><div class="spinner"></div><span>加载图表数据中...</span></div>
-      <div v-show="chartsLoaded" class="chart-grid"><div class="chart-card"><div id="chart-province" class="chart-box"></div></div><div class="chart-card"><div id="chart-major" class="chart-box"></div></div><div class="chart-card"><div id="chart-year" class="chart-box"></div></div><div class="chart-card"><div id="chart-enrollment" class="chart-box"></div></div></div>
+      <div v-if="chartsLoaded" class="chart-grid"><div class="chart-card"><div id="chart-province" class="chart-box"></div></div><div class="chart-card"><div id="chart-major" class="chart-box"></div></div><div class="chart-card"><div id="chart-year" class="chart-box"></div></div><div class="chart-card"><div id="chart-enrollment" class="chart-box"></div></div></div>
     </section>
 
     <section v-else-if="route === '/recommend'" class="page-wrap recommendation">
       <div class="page-title"><div><p>DECISION SUPPORT</p><h1>择校建议</h1><span>模型会解释评分组成，但不构成录取承诺。</span></div><button class="primary" :disabled="isRecommending || !candidatePrograms.length" @click="getRecommendations"><Sparkles :size="17"/>{{ isRecommending ? '计算中' : '更新建议' }}</button></div>
-      <div class="recommend-layout"><aside class="recommend-form"><h2>个人画像</h2><label>目标方向<select v-model="profile.targetMajor"><option value="0812">0812 计算机科学与技术</option><option value="0835">0835 软件工程</option><option value="0839">0839 网络空间安全</option><option value="0854">0854 电子信息</option></select></label><label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label><label>目标地区<div class="province-select"><label v-for="p in allProvinces" :key="p" class="province-check"><input type="checkbox" :value="p" v-model="selectedProvinces"/><span>{{ p }}</span></label></div></label><label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label><h2>权重配置</h2><label v-for="(value, key) in weights" :key="key">{{ ({ score: '分数匹配', competition: '竞争度', region: '地区', major: '专业' })[key] }}<input v-model.number="weights[key]" type="range" min="0" max="60"/><span>{{ value }}</span></label><p class="candidate-note">候选集：{{ candidatePrograms.length }} 项</p></aside><div><div v-if="!recommendations.length" class="empty"><Sparkles :size="25"/>填写画像后生成建议</div><div v-else class="recommendations"><article v-for="item in recommendations" :key="`${item.id}-${item.major_name}`"><div><span class="tier" :class="item.tier">{{ item.tier }}</span><b>{{ item.recommendation_score }}</b></div><h2>{{ item.university_name }}</h2><p>{{ item.major_name }} · {{ item.province }}</p><ul><li v-for="reason in item.reasons" :key="reason">{{ reason }}</li></ul><footer>{{ item.admission_year }} 年 · {{ item.source_name || '来源待补充' }} · {{ item.model_version }}</footer></article></div><p v-if="recommendations.length" class="disclaimer">仅供择校参考，不构成录取承诺。</p></div></div>
+      <div class="recommend-layout"><aside class="recommend-form"><h2>个人画像</h2><label>目标方向<select v-model="profile.targetMajor"><option value="0812">0812 计算机科学与技术</option><option value="0835">0835 软件工程</option><option value="0839">0839 网络空间安全</option><option value="085404">085404 计算机技术</option><option value="085405">085405 软件工程</option><option value="085410">085410 人工智能</option><option value="085411">085411 大数据技术与工程</option><option value="085412">085412 网络与信息安全</option></select></label><label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label><label>目标地区<div class="province-combo"><div class="province-tags"><span v-for="p in selectedProvinces" :key="p" class="province-tag">{{ p }}<button @click.prevent="removeProvince(p)">&times;</button></span><input v-model="provinceSearch" @input="onProvinceInput" @focus="provinceDropdownOpen=true" @keydown="onProvinceKeydown" placeholder="输入或选择省份" class="province-input"/></div><div v-if="provinceDropdownOpen && filteredProvinces.length" class="province-dropdown"><div v-for="p in filteredProvinces" :key="p" class="province-option" @mousedown.prevent="addProvince(p)">{{ p }}</div></div></div></label><label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label><h2>权重配置</h2><label v-for="(value, key) in weights" :key="key">{{ ({ score: '分数匹配', competition: '竞争度', region: '地区', major: '专业' })[key] }}<input v-model.number="weights[key]" type="range" min="0" max="60"/><span>{{ value }}</span></label><p class="candidate-note">候选集：{{ candidatePrograms.length }} 项</p></aside><div><div v-if="!recommendations.length" class="empty"><Sparkles :size="25"/>填写画像后生成建议</div><div v-else class="recommendations"><article v-for="item in recommendations" :key="`${item.id}-${item.major_name}`"><div><span class="tier" :class="item.tier">{{ item.tier }}</span><b>{{ item.recommendation_score }}</b></div><h2>{{ item.university_name }}</h2><p>{{ item.major_name }} · {{ item.province }}</p><ul><li v-for="reason in item.reasons" :key="reason">{{ reason }}</li></ul><footer>{{ item.admission_year }} 年 · {{ item.source_name || '来源待补充' }} · {{ item.model_version }}</footer></article></div><p v-if="recommendations.length" class="disclaimer">仅供择校参考，不构成录取承诺。</p></div></div>
     </section>
 
     <section v-else-if="route === '/user/profile'" class="page-wrap user-page">
@@ -354,9 +389,9 @@ onMounted(() => {
         <div class="profile-main">
           <h3>个人画像设置</h3>
           <div class="form-grid">
-            <label>目标方向<select v-model="profile.targetMajor"><option value="0812">0812 计算机科学与技术</option><option value="0835">0835 软件工程</option><option value="0839">0839 网络空间安全</option><option value="0854">0854 电子信息</option></select></label>
+            <label>目标方向<select v-model="profile.targetMajor"><option value="0812">0812 计算机科学与技术</option><option value="0835">0835 软件工程</option><option value="0839">0839 网络空间安全</option><option value="085404">085404 计算机技术</option><option value="085405">085405 软件工程</option><option value="085410">085410 人工智能</option><option value="085411">085411 大数据技术与工程</option><option value="085412">085412 网络与信息安全</option></select></label>
             <label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label>
-            <label>目标地区<div class="province-select"><label v-for="p in allProvinces" :key="p" class="province-check"><input type="checkbox" :value="p" v-model="selectedProvinces"/><span>{{ p }}</span></label></div></label>
+<label>目标地区<div class="province-combo"><div class="province-tags"><span v-for="p in selectedProvinces" :key="p" class="province-tag">{{ p }}<button @click.prevent="removeProvince(p)">&times;</button></span><input v-model="provinceSearch" @input="onProvinceInput" @focus="provinceDropdownOpen=true" @keydown="onProvinceKeydown" placeholder="输入或选择省份" class="province-input"/></div><div v-if="provinceDropdownOpen && filteredProvinces.length" class="province-dropdown"><div v-for="p in filteredProvinces" :key="p" class="province-option" @mousedown.prevent="addProvince(p)">{{ p }}</div></div></div></label>
             <label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label>
           </div>
           <h3 style="margin-top:20px">快捷入口</h3>
