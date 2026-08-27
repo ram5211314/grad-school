@@ -12,8 +12,9 @@ const currentUser = ref(null);
 function handleLogin(user) {
   loggedIn.value = true;
   currentUser.value = user;
-  if (user.role === "ADMIN") go("/admin/dashboard");
-  else go("/programs");
+  const target = user.role === "ADMIN" ? "/admin/dashboard"
+    : route.value && route.value !== "/login" ? route.value : "/programs";
+  go(target);
 }
 function logout() {
   localStorage.removeItem("token");
@@ -160,7 +161,6 @@ let provinceChart, majorChart, yearChart, enrollmentChart;
 const chartsLoaded = ref(false);
 const chartsLoading = ref(false);
 async function initCharts() {
-  if (chartsLoading.value) return;
   chartsLoading.value = true;
   try {
     const all = [];
@@ -175,8 +175,11 @@ async function initCharts() {
     }
     [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => { try { c?.dispose(); } catch {} });
     provinceChart = majorChart = yearChart = enrollmentChart = null;
-    renderCharts(all);
     chartsLoaded.value = true;
+    await nextTick();
+    await new Promise(r => requestAnimationFrame(r));
+    await new Promise(r => setTimeout(r, 50));
+    renderCharts(all);
   } catch(e) { console.error("Chart load error:", e); } finally { chartsLoading.value = false; }
 }
 function renderCharts(programs) {
@@ -195,84 +198,92 @@ function renderCharts(programs) {
   renderMajorChart(majorMap);
   renderYearChart(yearMap, programs);
   renderEnrollChart(uniEnroll);
-  setTimeout(() => { window.dispatchEvent(new Event("resize")); }, 100);
+  setTimeout(() => { window.dispatchEvent(new Event("resize")); }, 200);
 }
 function renderProvinceChart(data) {
-  const el = document.getElementById("chart-province");
-  if (!el) return;
-  if (provinceChart) provinceChart.dispose();
-  provinceChart = echarts.init(el);
-  const s = Object.entries(data).sort((a, b) => b[1] - a[1]);
-  provinceChart.setOption({
-    title: { text: "各省份数据分布", left: "center", textStyle: { fontSize: 14 } },
-    tooltip: { trigger: "axis" },
-    xAxis: { type: "category", data: s.map(x => x[0]), axisLabel: { rotate: 45, fontSize: 11 } },
-    yAxis: { type: "value" },
-    series: [{ type: "bar", data: s.map(x => x[1]), itemStyle: { color: "#409eff" } }],
-    grid: { left: 50, right: 20, bottom: 80, top: 40 }
-  });
+  try {
+    const el = document.getElementById("chart-province");
+    if (!el) { console.warn("chart-province element not found"); return; }
+    if (provinceChart) provinceChart.dispose();
+    provinceChart = echarts.init(el);
+    const s = Object.entries(data).sort((a, b) => b[1] - a[1]);
+    provinceChart.setOption({
+      title: { text: "各省份数据分布", left: "center", textStyle: { fontSize: 14 } },
+      tooltip: { trigger: "axis" },
+      xAxis: { type: "category", data: s.map(x => x[0]), axisLabel: { rotate: 45, fontSize: 11 } },
+      yAxis: { type: "value" },
+      series: [{ type: "bar", data: s.map(x => x[1]), itemStyle: { color: "#409eff" } }],
+      grid: { left: 50, right: 20, bottom: 80, top: 40 }
+    });
+  } catch(e) { console.error("Province chart error:", e); }
 }
 function renderMajorChart(data) {
-  const el = document.getElementById("chart-major");
-  if (!el) return;
-  if (majorChart) majorChart.dispose();
-  majorChart = echarts.init(el);
-  const lbl = { "0812": "计算机科学与技术", "0835": "软件工程", "0839": "网络空间安全", "0854": "电子信息", "085404": "计算机技术", "085405": "软件工程", "085410": "人工智能", "085411": "大数据", "085412": "网络与信息安全" };
-  majorChart.setOption({
-    title: { text: "专业分布", left: "center", textStyle: { fontSize: 14 } },
-    tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
-    legend: { bottom: 0 },
-    series: [{
-      type: "pie", radius: ["30%", "55%"],
-      label: { formatter: "{b}\n{d}%" },
-      data: Object.entries(data).map(([k, v]) => ({ name: lbl[k] || k, value: v }))
-    }]
-  });
+  try {
+    const el = document.getElementById("chart-major");
+    if (!el) { console.warn("chart-major element not found"); return; }
+    if (majorChart) majorChart.dispose();
+    majorChart = echarts.init(el);
+    const lbl = { "0812": "计算机科学与技术", "0835": "软件工程", "0839": "网络空间安全", "0854": "电子信息", "085404": "计算机技术", "085405": "软件工程", "085410": "人工智能", "085411": "大数据", "085412": "网络与信息安全" };
+    majorChart.setOption({
+      title: { text: "专业分布", left: "center", textStyle: { fontSize: 14 } },
+      tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
+      legend: { bottom: 0 },
+      series: [{
+        type: "pie", radius: ["30%", "55%"],
+        label: { formatter: "{b}\n{d}%" },
+        data: Object.entries(data).map(([k, v]) => ({ name: lbl[k] || k, value: v }))
+      }]
+    });
+  } catch(e) { console.error("Major chart error:", e); }
 }
 function renderYearChart(yearMap, programs) {
-  const el = document.getElementById("chart-year");
-  if (!el) return;
-  if (yearChart) yearChart.dispose();
-  yearChart = echarts.init(el);
-  const years = Object.keys(yearMap).sort();
-  const enr = {}, reg = {};
-  programs.forEach(p => {
-    const y = p.admissionYear;
-    if (p.actualEnrollment) enr[y] = (enr[y] || 0) + p.actualEnrollment;
-    if (p.registrationCount) reg[y] = (reg[y] || 0) + p.registrationCount;
-  });
-  yearChart.setOption({
-    title: { text: "年度数据与报录比", left: "center", textStyle: { fontSize: 14 } },
-    tooltip: { trigger: "axis" },
-    legend: { bottom: 0, data: ["记录数", "录取人数", "报录比"] },
-    xAxis: { type: "category", data: years },
-    yAxis: [{ type: "value" }, { type: "value", name: "报录比", min: 0 }],
-    series: [
-      { name: "记录数", type: "bar", data: years.map(y => yearMap[y]) },
-      { name: "录取人数", type: "bar", data: years.map(y => enr[y] || 0) },
-      { name: "报录比", type: "line", yAxisIndex: 1, data: years.map(y => reg[y] && enr[y] ? +(reg[y] / enr[y]).toFixed(2) : null), itemStyle: { color: "#e6a23c" } }
-    ],
-    grid: { left: 50, right: 50, bottom: 50, top: 40 }
-  });
+  try {
+    const el = document.getElementById("chart-year");
+    if (!el) { console.warn("chart-year element not found"); return; }
+    if (yearChart) yearChart.dispose();
+    yearChart = echarts.init(el);
+    const years = Object.keys(yearMap).sort();
+    const enr = {}, reg = {};
+    programs.forEach(p => {
+      const y = p.admissionYear;
+      if (p.actualEnrollment) enr[y] = (enr[y] || 0) + p.actualEnrollment;
+      if (p.registrationCount) reg[y] = (reg[y] || 0) + p.registrationCount;
+    });
+    yearChart.setOption({
+      title: { text: "年度数据与报录比", left: "center", textStyle: { fontSize: 14 } },
+      tooltip: { trigger: "axis" },
+      legend: { bottom: 0, data: ["记录数", "录取人数", "报录比"] },
+      xAxis: { type: "category", data: years },
+      yAxis: [{ type: "value" }, { type: "value", name: "报录比", min: 0 }],
+      series: [
+        { name: "记录数", type: "bar", data: years.map(y => yearMap[y]) },
+        { name: "录取人数", type: "bar", data: years.map(y => enr[y] || 0) },
+        { name: "报录比", type: "line", yAxisIndex: 1, data: years.map(y => reg[y] && enr[y] ? +(reg[y] / enr[y]).toFixed(2) : null), itemStyle: { color: "#e6a23c" } }
+      ],
+      grid: { left: 50, right: 50, bottom: 50, top: 40 }
+    });
+  } catch(e) { console.error("Year chart error:", e); }
 }
 function renderEnrollChart(uniEnroll) {
-  const el = document.getElementById("chart-enrollment");
-  if (!el) return;
-  if (enrollmentChart) enrollmentChart.dispose();
-  enrollmentChart = echarts.init(el);
-  const s = Object.entries(uniEnroll).filter(([, v]) => v.e > 0).sort((a, b) => b[1].e - a[1].e).slice(0, 12);
-  enrollmentChart.setOption({
-    title: { text: "TOP12 高校录取规模", left: "center", textStyle: { fontSize: 14 } },
-    tooltip: { trigger: "axis" },
-    legend: { bottom: 0, data: ["录取", "报名"] },
-    xAxis: { type: "category", data: s.map(x => x[0].length > 8 ? x[0].substring(0, 8) + ".." : x[0]), axisLabel: { rotate: 30, fontSize: 11 } },
-    yAxis: { type: "value" },
-    series: [
-      { name: "录取", type: "bar", data: s.map(x => x[1].e), itemStyle: { color: "#67c23a" } },
-      { name: "报名", type: "bar", data: s.map(x => x[1].r), itemStyle: { color: "#f56c6c" } }
-    ],
-    grid: { left: 50, right: 20, bottom: 60, top: 40 }
-  });
+  try {
+    const el = document.getElementById("chart-enrollment");
+    if (!el) { console.warn("chart-enrollment element not found"); return; }
+    if (enrollmentChart) enrollmentChart.dispose();
+    enrollmentChart = echarts.init(el);
+    const s = Object.entries(uniEnroll).filter(([, v]) => v.e > 0).sort((a, b) => b[1].e - a[1].e).slice(0, 12);
+    enrollmentChart.setOption({
+      title: { text: "TOP12 高校录取规模", left: "center", textStyle: { fontSize: 14 } },
+      tooltip: { trigger: "axis" },
+      legend: { bottom: 0, data: ["录取", "报名"] },
+      xAxis: { type: "category", data: s.map(x => x[0].length > 8 ? x[0].substring(0, 8) + ".." : x[0]), axisLabel: { rotate: 30, fontSize: 11 } },
+      yAxis: { type: "value" },
+      series: [
+        { name: "录取", type: "bar", data: s.map(x => x[1].e), itemStyle: { color: "#67c23a" } },
+        { name: "报名", type: "bar", data: s.map(x => x[1].r), itemStyle: { color: "#f56c6c" } }
+      ],
+      grid: { left: 50, right: 20, bottom: 60, top: 40 }
+    });
+  } catch(e) { console.error("Enrollment chart error:", e); }
 }
 watch(route, (v) => { if (v === "/charts") setTimeout(initCharts, 100); });
 window.addEventListener("resize", () => { [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => c?.resize()); });
