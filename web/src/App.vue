@@ -26,14 +26,15 @@ const programs = ref([]); const total = ref(0); const loading = ref(false); cons
 const selectedPrograms = ref(JSON.parse(localStorage.getItem("shortlist") || "[]"));
 const recommendations = ref([]); const isRecommending = ref(false); const page = ref(0);
 const filters = ref({ keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" });
-const profile = ref({ targetMajor: "大数据技术与工程", estimatedScore: 340, preferredProvinces: "江苏,浙江", riskPreference: "BALANCED" });
+const profile = ref({ targetMajor: "计算机科学与技术", estimatedScore: 340, preferredProvinces: "江苏,浙江", riskPreference: "BALANCED" });
 const weights = ref({ score: 45, competition: 20, region: 15, major: 15 });
-const pageSize = 12;
+const pageSize = 20;
 const apiTestUrl = ref("/api/v1/programs");
 const apiTestMethod = ref("GET");
 const apiTestBody = ref('{ "page": 0, "pageSize": 5 }');
 const apiTestResult = ref(null);
 const apiTestLoading = ref(false);
+const expandedGroups = ref({});
 
 async function runApiTest() {
   apiTestLoading.value = true;
@@ -59,6 +60,45 @@ const isTest = computed(() => currentUser.value?.role === "TEST");
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const candidatePrograms = computed(() => selectedPrograms.value.length ? selectedPrograms.value : programs.value);
 
+// 按高校+专业分组
+const groupedPrograms = computed(() => {
+  const groups = {};
+  programs.value.forEach(p => {
+    const key = (p.universityName || "") + "|" + (p.majorCode || "");
+    if (!groups[key]) {
+      groups[key] = {
+        universityName: p.universityName,
+        majorCode: p.majorCode,
+        majorName: p.majorName,
+        province: p.province,
+        level: p.universityLevel,
+        degreeType: p.degreeType,
+        examSubjects: p.examSubjects,
+        years: []
+      };
+    }
+    groups[key].years.push({
+      id: p.id,
+      year: p.admissionYear,
+      reexLine: p.reexaminationLine,
+      planned: p.plannedEnrollment,
+      actual: p.actualEnrollment,
+      reg: p.registrationCount,
+      national: p.nationalLine,
+      source: p.sourceName,
+      remarks: p.remarks
+    });
+  });
+  // 年份排序
+  Object.values(groups).forEach(g => g.years.sort((a, b) => b.year - a.year));
+  return Object.values(groups);
+});
+
+function toggleGroup(key) {
+  expandedGroups.value[key] = !expandedGroups.value[key];
+}
+function isExpanded(key) { return !!expandedGroups.value[key]; }
+
 function go(path) { location.hash = path; }
 window.addEventListener("hashchange", () => { route.value = location.hash.replace("#", "") || "/programs"; });
 watch(selectedPrograms, value => localStorage.setItem("shortlist", JSON.stringify(value)), { deep: true });
@@ -67,19 +107,127 @@ function sourceTime(p) { return p.collectedAt ? new Date(p.collectedAt).toLocale
 function selected(p) { return selectedPrograms.value.some(item => item.id === p.id); }
 function toggle(p) { const i = selectedPrograms.value.findIndex(item => item.id === p.id); if (i >= 0) selectedPrograms.value.splice(i, 1); else if (selectedPrograms.value.length < 5) selectedPrograms.value.push(p); }
 function clearFilters() { filters.value = { keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" }; page.value = 0; loadPrograms(); }
-async function loadPrograms() { loading.value = true; apiError.value = false; try { const params = new URLSearchParams({ page: page.value, pageSize, sort: "admissionYear,desc" }); Object.entries(filters.value).forEach(([k,v]) => v && params.set(k,v)); const res = await fetch(`${apiBase}/programs?${params}`); if (!res.ok) throw new Error(); const body = await res.json(); programs.value = body.items; total.value = body.total; } catch { apiError.value = true; programs.value = []; total.value = 0; } finally { loading.value = false; } }
+async function loadPrograms() { loading.value = true; apiError.value = false; try { const params = new URLSearchParams({ page: page.value, pageSize, sort: "universityName,asc" }); Object.entries(filters.value).forEach(([k,v]) => v && params.set(k,v)); const res = await fetch(`${apiBase}/programs?${params}`); if (!res.ok) throw new Error(); const body = await res.json(); programs.value = body.items; total.value = body.total; } catch { apiError.value = true; programs.value = []; total.value = 0; } finally { loading.value = false; } }
 function submitSearch() { page.value = 0; loadPrograms(); }
 async function getRecommendations() { if (!candidatePrograms.value.length) return; isRecommending.value = true; const requestProfile = { estimated_score: profile.value.estimatedScore, target_major: profile.value.targetMajor, preferred_provinces: profile.value.preferredProvinces.split(",").map(x => x.trim()).filter(Boolean), risk_preference: profile.value.riskPreference }; const requestPrograms = candidatePrograms.value.map(p => ({ id:p.id, university_name:p.universityName, major_name:p.majorName, province:p.province, reexamination_line:p.reexaminationLine, national_line:p.nationalLine, actual_enrollment:p.actualEnrollment, registration_count:p.registrationCount, admission_year:p.admissionYear, source_name:p.sourceName })); try { const res = await fetch(recommendationUrl, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({profile:requestProfile, programs:requestPrograms, weights:weights.value}) }); if (!res.ok) throw new Error(); recommendations.value = (await res.json()).items; } finally { isRecommending.value = false; } }
 function openRecommend() { go("/recommend"); setTimeout(getRecommendations, 0); }
+
 let provinceChart, majorChart, yearChart, enrollmentChart;
 const chartsLoaded = ref(false);
-async function initCharts() { if (chartsLoaded.value) return; chartsLoaded.value = true; try { const all = []; let pg = 0; let tot = Infinity; while (pg * 200 < tot) { const res = await fetch(`${apiBase}/programs?page=${pg}&pageSize=200`); if (!res.ok) break; const b = await res.json(); all.push(...b.items); tot = b.total; pg++; } renderCharts(all); } catch {} }
-function renderCharts(programs) { const provMap = {}, majorMap = {}, yearMap = {}, uniEnroll = {}; programs.forEach(p => { provMap[p.province] = (provMap[p.province] || 0) + 1; const mc = p.majorCode?.substring(0, 4) || p.majorCode; majorMap[mc] = (majorMap[mc] || 0) + 1; yearMap[p.admissionYear] = (yearMap[p.admissionYear] || 0) + 1; const n = p.universityName; if (!uniEnroll[n]) uniEnroll[n] = { e: 0, r: 0 }; if (p.actualEnrollment) uniEnroll[n].e += p.actualEnrollment; if (p.registrationCount) uniEnroll[n].r += p.registrationCount; }); nextTick(() => { renderProvinceChart(provMap); renderMajorChart(majorMap); renderYearChart(yearMap, programs); renderEnrollChart(uniEnroll); }); }
-function renderProvinceChart(data) { const el = document.getElementById("chart-province"); if (!el) return; if (provinceChart) provinceChart.dispose(); provinceChart = echarts.init(el); const s = Object.entries(data).sort((a, b) => b[1] - a[1]); provinceChart.setOption({ title: { text: "各省份数据分布", left: "center" }, tooltip: { trigger: "axis" }, xAxis: { type: "category", data: s.map(x => x[0]), axisLabel: { rotate: 45, fontSize: 11 } }, yAxis: { type: "value" }, series: [{ type: "bar", data: s.map(x => x[1]), itemStyle: { color: "#409eff" } }], grid: { left: 50, right: 20, bottom: 80, top: 40 } }); }
-function renderMajorChart(data) { const el = document.getElementById("chart-major"); if (!el) return; if (majorChart) majorChart.dispose(); majorChart = echarts.init(el); const lbl = { "0812": "0812 计算机", "0835": "0835 软件工程", "0839": "0839 网安", "0854": "0854 电子信息" }; majorChart.setOption({ title: { text: "专业代码分布", left: "center" }, tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" }, legend: { bottom: 0 }, series: [{ type: "pie", radius: ["30%", "55%"], label: { formatter: "{b}\n{d}%" }, data: Object.entries(data).map(([k, v]) => ({ name: lbl[k] || k, value: v })) }] }); }
-function renderYearChart(yearMap, programs) { const el = document.getElementById("chart-year"); if (!el) return; if (yearChart) yearChart.dispose(); yearChart = echarts.init(el); const years = Object.keys(yearMap).sort(); const enr = {}, reg = {}; programs.forEach(p => { const y = p.admissionYear; if (p.actualEnrollment) enr[y] = (enr[y] || 0) + p.actualEnrollment; if (p.registrationCount) reg[y] = (reg[y] || 0) + p.registrationCount; }); yearChart.setOption({ title: { text: "年度数据与报录比", left: "center" }, tooltip: { trigger: "axis" }, legend: { bottom: 0, data: ["记录数", "录取人数", "报录比"] }, xAxis: { type: "category", data: years }, yAxis: [{ type: "value" }, { type: "value", name: "报录比", min: 0 }], series: [{ name: "记录数", type: "bar", data: years.map(y => yearMap[y]) }, { name: "录取人数", type: "bar", data: years.map(y => enr[y] || 0) }, { name: "报录比", type: "line", yAxisIndex: 1, data: years.map(y => reg[y] && enr[y] ? +(reg[y] / enr[y]).toFixed(2) : null), itemStyle: { color: "#e6a23c" } }], grid: { left: 50, right: 50, bottom: 50, top: 40 } }); }
-function renderEnrollChart(uniEnroll) { const el = document.getElementById("chart-enrollment"); if (!el) return; if (enrollmentChart) enrollmentChart.dispose(); enrollmentChart = echarts.init(el); const s = Object.entries(uniEnroll).filter(([, v]) => v.e > 0).sort((a, b) => b[1].e - a[1].e).slice(0, 12); enrollmentChart.setOption({ title: { text: "TOP12 高校录取规模", left: "center" }, tooltip: { trigger: "axis" }, legend: { bottom: 0, data: ["录取", "报名"] }, xAxis: { type: "category", data: s.map(x => x[0].length > 6 ? x[0].substring(0, 6) + ".." : x[0]), axisLabel: { rotate: 30, fontSize: 11 } }, yAxis: { type: "value" }, series: [{ name: "录取", type: "bar", data: s.map(x => x[1].e), itemStyle: { color: "#67c23a" } }, { name: "报名", type: "bar", data: s.map(x => x[1].r), itemStyle: { color: "#f56c6c" } }], grid: { left: 50, right: 20, bottom: 60, top: 40 } }); }
-watch(route, (v) => { if (v === "/charts") setTimeout(initCharts, 100); });
+async function initCharts() {
+  if (chartsLoaded.value) return;
+  chartsLoaded.value = true;
+  try {
+    const all = [];
+    let pg = 0;
+    while (true) {
+      const res = await fetch(`${apiBase}/programs?page=${pg}&pageSize=200`);
+      if (!res.ok) break;
+      const b = await res.json();
+      all.push(...b.items);
+      if (all.length >= b.total) break;
+      pg++;
+    }
+    renderCharts(all);
+  } catch(e) { console.error("Chart load error:", e); }
+}
+function renderCharts(programs) {
+  const provMap = {}, majorMap = {}, yearMap = {}, uniEnroll = {};
+  programs.forEach(p => {
+    provMap[p.province] = (provMap[p.province] || 0) + 1;
+    const mc = (p.majorCode || "").substring(0, 4);
+    majorMap[mc] = (majorMap[mc] || 0) + 1;
+    yearMap[p.admissionYear] = (yearMap[p.admissionYear] || 0) + 1;
+    const n = p.universityName;
+    if (!uniEnroll[n]) uniEnroll[n] = { e: 0, r: 0 };
+    if (p.actualEnrollment) uniEnroll[n].e += p.actualEnrollment;
+    if (p.registrationCount) uniEnroll[n].r += p.registrationCount;
+  });
+  setTimeout(() => {
+    renderProvinceChart(provMap);
+    renderMajorChart(majorMap);
+    renderYearChart(yearMap, programs);
+    renderEnrollChart(uniEnroll);
+  }, 100);
+}
+function renderProvinceChart(data) {
+  const el = document.getElementById("chart-province");
+  if (!el) return;
+  if (provinceChart) provinceChart.dispose();
+  provinceChart = echarts.init(el);
+  const s = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  provinceChart.setOption({
+    title: { text: "各省份数据分布", left: "center", textStyle: { fontSize: 14 } },
+    tooltip: { trigger: "axis" },
+    xAxis: { type: "category", data: s.map(x => x[0]), axisLabel: { rotate: 45, fontSize: 11 } },
+    yAxis: { type: "value" },
+    series: [{ type: "bar", data: s.map(x => x[1]), itemStyle: { color: "#409eff" } }],
+    grid: { left: 50, right: 20, bottom: 80, top: 40 }
+  });
+}
+function renderMajorChart(data) {
+  const el = document.getElementById("chart-major");
+  if (!el) return;
+  if (majorChart) majorChart.dispose();
+  majorChart = echarts.init(el);
+  const lbl = { "0812": "计算机科学与技术", "0835": "软件工程", "0839": "网络空间安全", "0854": "电子信息" };
+  majorChart.setOption({
+    title: { text: "专业分布", left: "center", textStyle: { fontSize: 14 } },
+    tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
+    legend: { bottom: 0 },
+    series: [{
+      type: "pie", radius: ["30%", "55%"],
+      label: { formatter: "{b}\n{d}%" },
+      data: Object.entries(data).map(([k, v]) => ({ name: lbl[k] || k, value: v }))
+    }]
+  });
+}
+function renderYearChart(yearMap, programs) {
+  const el = document.getElementById("chart-year");
+  if (!el) return;
+  if (yearChart) yearChart.dispose();
+  yearChart = echarts.init(el);
+  const years = Object.keys(yearMap).sort();
+  const enr = {}, reg = {};
+  programs.forEach(p => {
+    const y = p.admissionYear;
+    if (p.actualEnrollment) enr[y] = (enr[y] || 0) + p.actualEnrollment;
+    if (p.registrationCount) reg[y] = (reg[y] || 0) + p.registrationCount;
+  });
+  yearChart.setOption({
+    title: { text: "年度数据与报录比", left: "center", textStyle: { fontSize: 14 } },
+    tooltip: { trigger: "axis" },
+    legend: { bottom: 0, data: ["记录数", "录取人数", "报录比"] },
+    xAxis: { type: "category", data: years },
+    yAxis: [{ type: "value" }, { type: "value", name: "报录比", min: 0 }],
+    series: [
+      { name: "记录数", type: "bar", data: years.map(y => yearMap[y]) },
+      { name: "录取人数", type: "bar", data: years.map(y => enr[y] || 0) },
+      { name: "报录比", type: "line", yAxisIndex: 1, data: years.map(y => reg[y] && enr[y] ? +(reg[y] / enr[y]).toFixed(2) : null), itemStyle: { color: "#e6a23c" } }
+    ],
+    grid: { left: 50, right: 50, bottom: 50, top: 40 }
+  });
+}
+function renderEnrollChart(uniEnroll) {
+  const el = document.getElementById("chart-enrollment");
+  if (!el) return;
+  if (enrollmentChart) enrollmentChart.dispose();
+  enrollmentChart = echarts.init(el);
+  const s = Object.entries(uniEnroll).filter(([, v]) => v.e > 0).sort((a, b) => b[1].e - a[1].e).slice(0, 12);
+  enrollmentChart.setOption({
+    title: { text: "TOP12 高校录取规模", left: "center", textStyle: { fontSize: 14 } },
+    tooltip: { trigger: "axis" },
+    legend: { bottom: 0, data: ["录取", "报名"] },
+    xAxis: { type: "category", data: s.map(x => x[0].length > 8 ? x[0].substring(0, 8) + ".." : x[0]), axisLabel: { rotate: 30, fontSize: 11 } },
+    yAxis: { type: "value" },
+    series: [
+      { name: "录取", type: "bar", data: s.map(x => x[1].e), itemStyle: { color: "#67c23a" } },
+      { name: "报名", type: "bar", data: s.map(x => x[1].r), itemStyle: { color: "#f56c6c" } }
+    ],
+    grid: { left: 50, right: 20, bottom: 60, top: 40 }
+  });
+}
+watch(route, (v) => { if (v === "/charts") { chartsLoaded.value = false; setTimeout(initCharts, 200); } });
 window.addEventListener("resize", () => { [provinceChart, majorChart, yearChart, enrollmentChart].forEach(c => c?.resize()); });
 onMounted(() => {
   const saved = localStorage.getItem("user");
@@ -102,10 +250,48 @@ onMounted(() => {
 
     <!-- ========== 用户端 ========== -->
     <section v-if="route === '/programs'" class="page-wrap">
-      <div class="page-title"><div><p>PROGRAM DIRECTORY</p><h1>招生信息检索</h1><span>仅展示已发布记录。数据年份、来源和采集时间在每个项目中可追溯。</span></div><button class="primary" @click="openRecommend"><Sparkles :size="17"/>生成择校建议</button></div>
-      <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校或专业名称"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>陕西</option><option>辽宁</option><option>福建</option><option>广东</option><option>湖南</option><option>安徽</option><option>山东</option><option>河北</option></select></label><label><select v-model="filters.majorCode"><option value="">全部专业代码</option><option value="0812">0812 计算机</option><option value="0835">0835 软件工程</option><option value="0839">0839 网安</option><option value="0854">0854 电子信息</option></select></label><label><SlidersHorizontal :size="16"/><select v-model="filters.examKeyword"><option value="">全部专业课</option><option value="408">408</option><option value="数学二">数学二</option><option value="数学一">数学一</option></select></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
-      <p v-if="apiError" class="notice">业务服务不可用。</p><p class="result-meta">{{ total }} 条已发布项目 · 第 {{ page + 1 }} / {{ totalPages }} 页</p>
-      <div class="programs"><article v-for="p in programs" :key="p.id" class="program"><div class="program-head"><span>{{ p.majorCode }}</span><button class="icon" :class="{ chosen: selected(p) }" @click="toggle(p)"><Bookmark :size="17" :fill="selected(p) ? 'currentColor' : 'none'"/></button></div><h2>{{ p.universityName }}</h2><strong>{{ p.majorName }}</strong><div class="tags"><span>{{ p.province }}</span><span>{{ p.studyMode === 'FULL_TIME' ? '全日制' : p.studyMode }}</span><span>{{ p.admissionYear }} 年</span></div><dl><div><dt>复试线</dt><dd>{{ p.reexaminationLine ?? '未公开' }}</dd></div><div><dt>计划</dt><dd>{{ p.plannedEnrollment ?? '未公开' }}</dd></div><div><dt>报录比</dt><dd>{{ ratio(p) }}</dd></div></dl><p class="subjects">{{ p.examSubjects }}</p><footer><span>来源：{{ p.sourceName || '未标注' }}</span><a v-if="p.sourceUrl" :href="p.sourceUrl" target="_blank">查看来源 <ExternalLink :size="12"/></a><small>采集：{{ sourceTime(p) }}</small></footer></article></div>
+      <div class="page-title"><div><p>PROGRAM DIRECTORY</p><h1>招生信息检索</h1><span>按高校+专业分组展示，点击展开查看各年份数据。</span></div><button class="primary" @click="openRecommend"><Sparkles :size="17"/>生成择校建议</button></div>
+      <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校或专业名称"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>陕西</option><option>辽宁</option><option>福建</option><option>广东</option><option>湖南</option><option>安徽</option><option>山东</option><option>河北</option><option>黑龙江</option><option>天津</option><option>吉林</option><option>重庆</option><option>甘肃</option><option>广西</option></select></label><label><select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机</option><option value="0835">0835 软件工程</option><option value="0839">0839 网安</option><option value="0854">0854 电子信息</option></select></label><label><SlidersHorizontal :size="16"/><select v-model="filters.examKeyword"><option value="">全部专业课</option><option value="408">408</option><option value="数学二">数学二</option><option value="数学一">数学一</option></select></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
+      <p v-if="apiError" class="notice">业务服务不可用。</p><p class="result-meta">{{ total }} 条记录 · {{ groupedPrograms.length }} 个高校专业组 · 第 {{ page + 1 }} / {{ totalPages }} 页</p>
+      <div class="grouped-programs">
+        <article v-for="g in groupedPrograms" :key="g.universityName + g.majorCode" class="group-card">
+          <div class="group-header" @click="toggleGroup(g.universityName + g.majorCode)">
+            <div class="group-info">
+              <div class="group-left">
+                <span class="group-code">{{ g.majorCode }}</span>
+                <div>
+                  <h2>{{ g.universityName }}</h2>
+                  <p class="group-major">{{ g.majorName }} · {{ g.province }} · {{ g.level || '双非' }}</p>
+                </div>
+              </div>
+              <div class="group-right">
+                <span class="group-years">{{ g.years.length }}年数据</span>
+                <span class="group-latest">{{ g.years[0]?.year || '' }}</span>
+                <ChevronDown :size="18" :class="{ rotated: isExpanded(g.universityName + g.majorCode) }"/>
+              </div>
+            </div>
+          </div>
+          <div v-if="isExpanded(g.universityName + g.majorCode)" class="group-body">
+            <p class="group-subjects" v-if="g.examSubjects && g.examSubjects !== '未公开'">考试科目：{{ g.examSubjects }}</p>
+            <div class="year-table">
+              <table>
+                <thead><tr><th>年份</th><th>复试线</th><th>国家线</th><th>计划招生</th><th>录取</th><th>报名</th><th>报录比</th></tr></thead>
+                <tbody>
+                  <tr v-for="y in g.years" :key="y.id">
+                    <td><b>{{ y.year }}</b></td>
+                    <td :class="y.reexLine ? 'has-data' : ''">{{ y.reexLine ?? '-' }}</td>
+                    <td :class="y.national ? 'has-data' : ''">{{ y.national ?? '-' }}</td>
+                    <td :class="y.planned ? 'has-data' : ''">{{ y.planned ?? '-' }}</td>
+                    <td :class="y.actual ? 'has-data' : ''">{{ y.actual ?? '-' }}</td>
+                    <td>{{ y.reg ?? '-' }}</td>
+                    <td>{{ y.reg && y.actual ? (y.reg / y.actual).toFixed(1) + ':1' : '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+      </div>
       <div class="pager"><button class="icon" :disabled="page === 0" @click="page--; loadPrograms()"><ChevronLeft :size="17"/></button><span>第 {{ page + 1 }} 页</span><button class="icon" :disabled="page + 1 >= totalPages" @click="page++; loadPrograms()"><ChevronRight :size="17"/></button></div>
     </section>
 
