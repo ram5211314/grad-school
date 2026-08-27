@@ -83,6 +83,16 @@ public class ProgramController {
 
     @GetMapping("/favorites") public List<FavoriteProgram> listFavorites(@RequestParam Long userId) { return favorites.findByUserId(userId); }
 
+    @GetMapping("/majors")
+    public List<Map<String, String>> listMajors() {
+        return programs.findDistinctMajors();
+    }
+
+    @GetMapping("/provinces")
+    public List<String> listProvinces() {
+        return programs.findDistinctProvinces();
+    }
+
     @PostMapping("/admin/imports/programs")
     public Map<String, Object> importPrograms(@RequestParam MultipartFile file) throws IOException {
         int success = 0, failed = 0; String line;

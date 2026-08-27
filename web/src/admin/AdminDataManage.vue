@@ -13,6 +13,8 @@ const form = ref({});
 const showForm = ref(false);
 const saving = ref(false);
 const msg = ref("");
+const allProvinces = ref([]);
+const allMajors = ref([]);
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 
@@ -30,6 +32,11 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+function loadFilterData() {
+  fetch("/api/v1/provinces").then(r => r.json()).then(d => allProvinces.value = d).catch(() => {});
+  fetch("/api/v1/majors").then(r => r.json()).then(d => allMajors.value = d).catch(() => {});
 }
 
 function search() { page.value = 0; load(); }
@@ -72,7 +79,7 @@ async function remove(id) {
   if (res.ok) { msg.value = "删除成功"; load(); }
 }
 
-onMounted(load);
+onMounted(() => { load(); loadFilterData(); });
 </script>
 
 <template>
@@ -87,8 +94,8 @@ onMounted(load);
     <p v-if="msg" class="msg">{{ msg }}</p>
     <form class="filters" @submit.prevent="search">
       <label><Search :size="14"/><input v-model="filters.keyword" placeholder="搜索院校/专业"/></label>
-      <select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>陕西</option><option>辽宁</option><option>福建</option><option>广东</option><option>湖南</option><option>安徽</option><option>山东</option><option>河北</option></select>
-      <select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机</option><option value="0835">0835 软件</option><option value="0839">0839 网安</option><option value="085404">085404 计算机技术</option><option value="085405">085405 软件</option><option value="085410">085410 人工智能</option><option value="085411">085411 大数据</option><option value="085412">085412 信安</option></select>
+      <select v-model="filters.province"><option value="">全部省份</option><option v-for="p in allProvinces" :key="p" :value="p">{{ p }}</option></select>
+      <select v-model="filters.majorCode"><option value="">全部专业</option><option v-for="m in allMajors" :key="m.code" :value="m.code">{{ m.code }} {{ m.name }}</option></select>
       <button class="primary" type="submit">查询</button>
     </form>
     <div class="table-wrap">

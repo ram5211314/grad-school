@@ -31,17 +31,20 @@ async function loadData() {
 function processCharts(programs) {
   const uniSet = new Set();
   const provMap = {};
-  const majorMap = {};
+  const majorCatMap = {};
   const yearMap = {};
   let totalEnroll = 0;
   let totalReg = 0;
   let countWithEnroll = 0;
 
+  const catNames = {"01":"哲学","02":"经济学","03":"法学","04":"教育学","05":"文学","06":"历史学","07":"理学","08":"工学","09":"农学","10":"医学","11":"军事学","12":"管理学","13":"艺术学","14":"交叉学科"};
+
   programs.forEach(p => {
     uniSet.add(p.universityName);
     provMap[p.province] = (provMap[p.province] || 0) + 1;
-    const mc = p.majorCode?.substring(0, 2) === "08" ? p.majorCode.substring(0, 4) : p.majorCode;
-    majorMap[mc] = (majorMap[mc] || 0) + 1;
+    const cat = (p.majorCode || "").substring(0, 2);
+    const catLabel = catNames[cat] ? `${cat} ${catNames[cat]}` : cat;
+    majorCatMap[catLabel] = (majorCatMap[catLabel] || 0) + 1;
     yearMap[p.admissionYear] = (yearMap[p.admissionYear] || 0) + 1;
     if (p.actualEnrollment) { totalEnroll += p.actualEnrollment; countWithEnroll++; }
     if (p.registrationCount) totalReg += p.registrationCount;
@@ -56,7 +59,7 @@ function processCharts(programs) {
 
   nextTick(() => {
     renderProvince(provMap);
-    renderMajor(majorMap);
+    renderMajor(majorCatMap);
     renderYear(yearMap, programs);
     renderEnrollment(programs);
   });
@@ -83,10 +86,9 @@ function renderMajor(data) {
   if (!el) return;
   if (majorChart) majorChart.dispose();
   majorChart = echarts.init(el);
-  const labelMap = { "0812": "0812 计算机科学与技术", "0835": "0835 软件工程", "0839": "0839 网络空间安全", "0854": "0854 电子信息", "085404": "085404 计算机技术", "085405": "085405 软件工程", "085410": "085410 人工智能", "085411": "085411 大数据", "085412": "085412 网络与信息安全" };
-  const pieData = Object.entries(data).map(([k, v]) => ({ name: labelMap[k] || k, value: v }));
+  const pieData = Object.entries(data).map(([k, v]) => ({ name: k, value: v }));
   majorChart.setOption({
-    title: { text: "专业代码分布", left: "center" },
+    title: { text: "学科门类分布", left: "center" },
     tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
     legend: { bottom: 0, type: "scroll" },
     series: [{

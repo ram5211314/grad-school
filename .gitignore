@@ -50,6 +50,13 @@ bigdata/**/tmp/
 data-collection/runs/**/*.html
 data-collection/runs/**/*.zip
 data-collection/runs/**/*.json
+data-collection/runs/*_raw.csv
+data-collection/runs/debug_*
+data-collection/runs/count_*
+data-collection/runs/enc_*
+data-collection/runs/fields_*
+data-collection/runs/freecho/
+data-collection/debug_*.py
 !data-collection/sources.json
 !data-collection/aggregate_cpeer.py
 !data-collection/import_to_spring.py

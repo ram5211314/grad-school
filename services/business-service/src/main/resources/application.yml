@@ -16,8 +16,8 @@ spring:
       path: /h2-console
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 5MB
+      max-file-size: 50MB
+      max-request-size: 50MB
 
 server:
   port: 8080
