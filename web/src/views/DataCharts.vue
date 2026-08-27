@@ -83,7 +83,7 @@ function renderMajor(data) {
   if (!el) return;
   if (majorChart) majorChart.dispose();
   majorChart = echarts.init(el);
-  const labelMap = { "0812": "0812 计算机科学与技术", "0835": "0835 软件工程", "0839": "0839 网络空间安全", "0854": "0854 电子信息" };
+  const labelMap = { "0812": "0812 计算机科学与技术", "0835": "0835 软件工程", "0839": "0839 网络空间安全", "0854": "0854 电子信息", "085404": "085404 计算机技术", "085405": "085405 软件工程", "085410": "085410 人工智能", "085411": "085411 大数据", "085412": "085412 网络与信息安全" };
   const pieData = Object.entries(data).map(([k, v]) => ({ name: labelMap[k] || k, value: v }));
   majorChart.setOption({
     title: { text: "专业代码分布", left: "center" },

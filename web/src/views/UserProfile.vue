@@ -6,7 +6,7 @@ const profile = ref({
   username: "考研学生",
   email: "",
   undergraduateMajor: "",
-  targetMajor: "计算机科学与技术",
+  targetMajor: "0812",
   preferredProvinces: "",
   estimatedScore: 350,
   riskPreference: "BALANCED",

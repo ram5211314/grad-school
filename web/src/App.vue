@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch, nextTick } from "vue";
-import { BarChart3, Bookmark, ChevronLeft, ChevronRight, Database, ExternalLink, GraduationCap, LayoutDashboard, LogOut, MapPin, PieChart, Search, Settings, Shield, SlidersHorizontal, Sparkles, Upload, User, Users, FileText, X } from "lucide-vue-next";
+import { BarChart3, Bookmark, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Database, ExternalLink, GraduationCap, LayoutDashboard, LogOut, MapPin, PieChart, Search, Settings, Shield, SlidersHorizontal, Sparkles, Upload, User, Users, FileText, X } from "lucide-vue-next";
 import * as echarts from "echarts";
 import LoginPage from "./views/LoginPage.vue";
 
@@ -176,8 +176,8 @@ async function initCharts() {
     await nextTick();
     setTimeout(() => {
       renderCharts(all);
-      setTimeout(() => window.dispatchEvent(new Event("resize")), 50);
-    }, 200);
+      window.dispatchEvent(new Event("resize"));
+    }, 300);
   } catch(e) { console.error("Chart load error:", e); chartsLoaded.value = true; }
 }
 function renderCharts(programs) {
@@ -192,12 +192,10 @@ function renderCharts(programs) {
     if (p.actualEnrollment) uniEnroll[n].e += p.actualEnrollment;
     if (p.registrationCount) uniEnroll[n].r += p.registrationCount;
   });
-  setTimeout(() => {
-    renderProvinceChart(provMap);
-    renderMajorChart(majorMap);
-    renderYearChart(yearMap, programs);
-    renderEnrollChart(uniEnroll);
-  }, 100);
+  renderProvinceChart(provMap);
+  renderMajorChart(majorMap);
+  renderYearChart(yearMap, programs);
+  renderEnrollChart(uniEnroll);
 }
 function renderProvinceChart(data) {
   const el = document.getElementById("chart-province");
@@ -219,7 +217,7 @@ function renderMajorChart(data) {
   if (!el) return;
   if (majorChart) majorChart.dispose();
   majorChart = echarts.init(el);
-  const lbl = { "0812": "计算机科学与技术", "0835": "软件工程", "0839": "网络空间安全", "0854": "电子信息" };
+  const lbl = { "0812": "计算机科学与技术", "0835": "软件工程", "0839": "网络空间安全", "0854": "电子信息", "085404": "计算机技术", "085405": "软件工程", "085410": "人工智能", "085411": "大数据", "085412": "网络与信息安全" };
   majorChart.setOption({
     title: { text: "专业分布", left: "center", textStyle: { fontSize: 14 } },
     tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
@@ -285,6 +283,7 @@ onMounted(() => {
   const saved = localStorage.getItem("user");
   if (saved) { try { currentUser.value = JSON.parse(saved); loggedIn.value = true; } catch {} }
   loadPrograms();
+  if (route.value === "/charts") setTimeout(initCharts, 300);
 });
 </script>
 
@@ -303,7 +302,7 @@ onMounted(() => {
     <!-- ========== 用户端 ========== -->
     <section v-if="route === '/programs'" class="page-wrap">
       <div class="page-title"><div><p>PROGRAM DIRECTORY</p><h1>招生信息检索</h1><span>按高校+专业分组展示，点击展开查看各年份数据。</span></div><button class="primary" @click="openRecommend"><Sparkles :size="17"/>生成择校建议</button></div>
-      <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校或专业名称"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>天津</option><option>重庆</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>陕西</option><option>广东</option><option>辽宁</option><option>福建</option><option>山东</option><option>河北</option><option>湖南</option><option>安徽</option><option>吉林</option><option>黑龙江</option><option>广西</option><option>甘肃</option><option>海南</option><option>江西</option><option>贵州</option><option>新疆</option><option>宁夏</option></select></label><label><select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机</option><option value="0835">0835 软件工程</option><option value="0839">0839 网安</option><option value="0854">0854 电子信息</option></select></label><label><SlidersHorizontal :size="16"/><select v-model="filters.examKeyword"><option value="">全部专业课</option><option value="408">408</option><option value="数学二">数学二</option><option value="数学一">数学一</option></select></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
+      <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校或专业名称"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>天津</option><option>重庆</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>陕西</option><option>广东</option><option>辽宁</option><option>福建</option><option>山东</option><option>河北</option><option>湖南</option><option>安徽</option><option>吉林</option><option>黑龙江</option><option>广西</option><option>甘肃</option><option>海南</option><option>江西</option><option>贵州</option><option>新疆</option><option>宁夏</option></select></label><label><select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机科学与技术</option><option value="0835">0835 软件工程</option><option value="0839">0839 网络空间安全</option><option value="085404">085404 计算机技术</option><option value="085405">085405 软件工程</option><option value="085410">085410 人工智能</option><option value="085411">085411 大数据技术与工程</option><option value="085412">085412 网络与信息安全</option></select></label><label><SlidersHorizontal :size="16"/><select v-model="filters.examKeyword"><option value="">全部专业课</option><option value="408">408</option><option value="数学二">数学二</option><option value="数学一">数学一</option></select></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
       <p v-if="apiError" class="notice">业务服务不可用。</p><p class="result-meta">{{ total }} 条记录 · {{ groupedPrograms.length }} 个高校专业组 · 第 {{ page + 1 }} / {{ totalPages }} 页</p>
       <div class="grouped-programs">
         <article v-for="g in groupedPrograms" :key="g.universityName + g.majorCode" class="group-card">
@@ -441,7 +440,7 @@ onMounted(() => {
 
     <section v-else-if="route === '/admin/data'" class="page-wrap admin-page">
       <div class="page-title"><div><p>DATA MANAGEMENT</p><h1>招生数据管理 <small>{{ total }} 条</small></h1></div><button class="plain" @click="loadPrograms">刷新</button></div>
-      <form class="filters" @submit.prevent="submitSearch"><label><Search :size="14"/><input v-model="filters.keyword" placeholder="搜索院校/专业"/></label><select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>广东</option></select><select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812</option><option value="0835">0835</option><option value="0839">0839</option><option value="0854">0854</option></select><button class="primary" type="submit">查询</button></form>
+      <form class="filters" @submit.prevent="submitSearch"><label><Search :size="14"/><input v-model="filters.keyword" placeholder="搜索院校/专业"/></label><select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>广东</option></select><select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机</option><option value="0835">0835 软件</option><option value="0839">0839 网安</option><option value="085404">085404 计算机技术</option><option value="085405">085405 软件</option><option value="085410">085410 人工智能</option><option value="085411">085411 大数据</option><option value="085412">085412 信安</option></select><button class="primary" type="submit">查询</button></form>
       <div class="table-wrap"><table><thead><tr><th>ID</th><th>院校</th><th>省份</th><th>专业</th><th>年份</th><th>复试线</th><th>录取</th><th>报名</th></tr></thead><tbody><tr v-for="p in programs" :key="p.id"><td>{{ p.id }}</td><td><b>{{ p.universityName }}</b></td><td>{{ p.province }}</td><td>{{ p.majorCode }} {{ p.majorName }}</td><td>{{ p.admissionYear }}</td><td>{{ p.reexaminationLine ?? '未公开' }}</td><td>{{ p.actualEnrollment ?? '-' }}</td><td>{{ p.registrationCount ?? '未公开' }}</td></tr></tbody></table></div>
       <div class="pager"><button :disabled="page === 0" @click="page--; loadPrograms()">上一页</button><span>第 {{ page + 1 }} / {{ totalPages }} 页</span><button :disabled="page + 1 >= totalPages" @click="page++; loadPrograms()">下一页</button></div>
     </section>

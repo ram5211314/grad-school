@@ -88,7 +88,7 @@ onMounted(load);
     <form class="filters" @submit.prevent="search">
       <label><Search :size="14"/><input v-model="filters.keyword" placeholder="搜索院校/专业"/></label>
       <select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>陕西</option><option>辽宁</option><option>福建</option><option>广东</option><option>湖南</option><option>安徽</option><option>山东</option><option>河北</option></select>
-      <select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机</option><option value="0835">0835 软件工程</option><option value="0839">0839 网安</option><option value="0854">0854 电子信息</option></select>
+      <select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机</option><option value="0835">0835 软件</option><option value="0839">0839 网安</option><option value="085404">085404 计算机技术</option><option value="085405">085405 软件</option><option value="085410">085410 人工智能</option><option value="085411">085411 大数据</option><option value="085412">085412 信安</option></select>
       <button class="primary" type="submit">查询</button>
     </form>
     <div class="table-wrap">
