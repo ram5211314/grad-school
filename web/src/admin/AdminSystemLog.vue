@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from "vue";
-import { FileText, RefreshLeft } from "lucide-vue-next";
+import { FileText, RefreshCw } from "lucide-vue-next";
 
 const logs = ref([]);
 const total = ref(0);
@@ -32,7 +32,7 @@ onMounted(load);
   <div class="admin-logs">
     <div class="section-header">
       <h2>系统日志 <small>{{ total }} 条</small></h2>
-      <button class="plain" @click="load"><RefreshLeft :size="16"/> 刷新</button>
+      <button class="plain" @click="load"><RefreshCw :size="16"/> 刷新</button>
     </div>
     <div class="table-wrap">
       <table>

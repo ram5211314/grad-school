@@ -4,6 +4,11 @@ import { BarChart3, Bookmark, ChevronDown, ChevronLeft, ChevronRight, CheckCircl
 import LoginPage from "./views/LoginPage.vue";
 import DataCharts from "./views/DataCharts.vue";
 import ComboBox from "./components/ComboBox.vue";
+import AdminDashboard from "./admin/AdminDashboard.vue";
+import AdminDataManage from "./admin/AdminDataManage.vue";
+import AdminDataImport from "./admin/AdminDataImport.vue";
+import AdminUserManage from "./admin/AdminUserManage.vue";
+import AdminSystemLog from "./admin/AdminSystemLog.vue";
 
 const apiBase = "/api/v1";
 const recommendationUrl = "/recommendation/api/v1/recommendations";
@@ -304,33 +309,11 @@ onMounted(() => {
     </section>
 
     <!-- ========== 管理员端 ========== -->
-    <section v-else-if="route === '/admin/dashboard'" class="page-wrap admin-page">
-      <div class="page-title"><div><p>ADMIN DASHBOARD</p><h1>系统概览</h1></div></div>
-      <div class="stat-cards"><div class="stat-card"><div class="stat-icon" style="background:#ecf5ff"><Database :size="24" color="#409eff"/></div><div class="stat-info"><span class="stat-num">{{ total }}</span><span class="stat-label">数据总量</span></div></div><div class="stat-card"><div class="stat-icon" style="background:#f0f9eb"><CheckCircle :size="24" color="#67c23a"/></div><div class="stat-info"><span class="stat-num">{{ total }}</span><span class="stat-label">已发布</span></div></div><div class="stat-card"><div class="stat-icon" style="background:#fdf6ec"><AlertCircle :size="24" color="#e6a23c"/></div><div class="stat-info"><span class="stat-num">0</span><span class="stat-label">待审核</span></div></div><div class="stat-card"><div class="stat-icon" style="background:#fef0f0"><Users :size="24" color="#f56c6c"/></div><div class="stat-info"><span class="stat-num">0</span><span class="stat-label">注册用户</span></div></div></div>
-      <div class="dashboard-section"><h3>快速操作</h3><div class="quick-actions"><button class="action-btn" @click="go('/admin/data')">管理数据</button><button class="action-btn" @click="go('/admin/import')">导入数据</button><button class="action-btn" @click="go('/admin/users')">用户管理</button></div></div>
-    </section>
-
-    <section v-else-if="route === '/admin/data'" class="page-wrap admin-page">
-      <div class="page-title"><div><p>DATA MANAGEMENT</p><h1>招生数据管理 <small>{{ total }} 条</small></h1></div><button class="plain" @click="loadPrograms">刷新</button></div>
-      <form class="filters" @submit.prevent="submitSearch"><label><Search :size="14"/><input v-model="filters.keyword" placeholder="搜索院校/专业"/></label><select v-model="filters.province"><option value="">全部省份</option><option>北京</option><option>上海</option><option>江苏</option><option>浙江</option><option>湖北</option><option>四川</option><option>广东</option></select><select v-model="filters.majorCode"><option value="">全部专业</option><option value="0812">0812 计算机</option><option value="0835">0835 软件</option><option value="0839">0839 网安</option><option value="085404">085404 计算机技术</option><option value="085405">085405 软件</option><option value="085410">085410 人工智能</option><option value="085411">085411 大数据</option><option value="085412">085412 信安</option></select><button class="primary" type="submit">查询</button></form>
-      <div class="table-wrap"><table><thead><tr><th>ID</th><th>院校</th><th>省份</th><th>专业</th><th>年份</th><th>复试线</th><th>录取</th><th>报名</th></tr></thead><tbody><tr v-for="p in programs" :key="p.id"><td>{{ p.id }}</td><td><b>{{ p.universityName }}</b></td><td>{{ p.province }}</td><td>{{ p.majorCode }} {{ p.majorName }}</td><td>{{ p.admissionYear }}</td><td>{{ p.reexaminationLine ?? '未公开' }}</td><td>{{ p.actualEnrollment ?? '-' }}</td><td>{{ p.registrationCount ?? '未公开' }}</td></tr></tbody></table></div>
-      <div class="pager"><button :disabled="page === 0" @click="page--; loadPrograms()">上一页</button><span>第 {{ page + 1 }} / {{ totalPages }} 页</span><button :disabled="page + 1 >= totalPages" @click="page++; loadPrograms()">下一页</button></div>
-    </section>
-
-    <section v-else-if="route === '/admin/import'" class="page-wrap admin-page">
-      <div class="page-title"><div><p>DATA IMPORT</p><h1>数据导入</h1></div></div>
-      <div class="import-card"><h3>上传CSV文件</h3><p>支持UTF-8编码CSV，首行为表头</p><p class="fields-hint">必填：universityName, province, majorCode, majorName, admissionYear</p></div>
-    </section>
-
-    <section v-else-if="route === '/admin/users'" class="page-wrap admin-page">
-      <div class="page-title"><div><p>USER MANAGEMENT</p><h1>用户管理</h1></div></div>
-      <p class="notice">用户管理功能需先实现账号注册/登录模块（Spring Security + RBAC）。</p>
-    </section>
-
-    <section v-else-if="route === '/admin/logs'" class="page-wrap admin-page">
-      <div class="page-title"><div><p>SYSTEM LOGS</p><h1>系统日志</h1></div></div>
-      <p class="notice">系统日志功能需先实现操作审计模块。</p>
-    </section>
+    <AdminDashboard v-else-if="route === '/admin/dashboard'"/>
+    <AdminDataManage v-else-if="route === '/admin/data'"/>
+    <AdminDataImport v-else-if="route === '/admin/import'"/>
+    <AdminUserManage v-else-if="route === '/admin/users'"/>
+    <AdminSystemLog v-else-if="route === '/admin/logs'"/>
 
     <section v-else class="page-wrap">
       <div class="empty"><GraduationCap :size="40"/><p>请选择功能模块</p></div>

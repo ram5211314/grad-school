@@ -70,4 +70,25 @@ public class Program {
     public Instant getCollectedAt() { return collectedAt; }
     public String getPublishStatus() { return publishStatus; }
     public String getRemarks() { return remarks; }
+
+    public void setUniversityName(String v) { this.universityName = v; }
+    public void setProvince(String v) { this.province = v; }
+    public void setMajorCode(String v) { this.majorCode = v; }
+    public void setMajorName(String v) { this.majorName = v; }
+    public void setDegreeType(String v) { this.degreeType = v; }
+    public void setStudyMode(String v) { this.studyMode = v; }
+    public void setExamSubjects(String v) { this.examSubjects = v; }
+    public void setReexaminationLine(Integer v) { this.reexaminationLine = v; }
+    public void setActualEnrollment(Integer v) { this.actualEnrollment = v; }
+    public void setRegistrationCount(Integer v) { this.registrationCount = v; }
+    public void setAdmissionYear(Integer v) { this.admissionYear = v; }
+    public void setUniversityLevel(String v) { this.universityLevel = v; }
+    public void setPlannedEnrollment(Integer v) { this.plannedEnrollment = v; }
+    public void setNationalLine(Integer v) { this.nationalLine = v; }
+    public void setSourceName(String v) { this.sourceName = v; }
+    public void setSourceUrl(String v) { this.sourceUrl = v; }
+    public void setSourceYear(Integer v) { this.sourceYear = v; }
+    public void setCollectedAt(Instant v) { this.collectedAt = v; }
+    public void setPublishStatus(String v) { this.publishStatus = v; }
+    public void setRemarks(String v) { this.remarks = v; }
 }

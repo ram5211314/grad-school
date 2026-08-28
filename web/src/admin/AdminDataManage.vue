@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
-import { Edit, Delete, Search, Plus, RefreshLeft } from "lucide-vue-next";
+import { Edit, Delete, Search, Plus, RefreshCw } from "lucide-vue-next";
 
 const programs = ref([]);
 const total = ref(0);
@@ -88,7 +88,7 @@ onMounted(() => { load(); loadFilterData(); });
       <h2>招生数据管理 <small>{{ total }} 条</small></h2>
       <div class="header-actions">
         <button class="primary" @click="openCreate"><Plus :size="16"/> 新增</button>
-        <button class="plain" @click="load"><RefreshLeft :size="16"/> 刷新</button>
+        <button class="plain" @click="load"><RefreshCw :size="16"/> 刷新</button>
       </div>
     </div>
     <p v-if="msg" class="msg">{{ msg }}</p>
