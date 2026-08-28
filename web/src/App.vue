@@ -29,7 +29,7 @@ const recommendations = ref([]); const isRecommending = ref(false); const page =
 const filters = ref({ keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" });
 const profile = ref({ targetMajor: "", estimatedScore: 340, preferredProvinces: "江苏,浙江", riskPreference: "BALANCED" });
 const weights = ref({ score: 45, competition: 20, region: 15, major: 15 });
-const pageSize = 200;
+const pageSize = 100;
 const groupPageSize = 10;
 
 // 动态加载省份和专业
