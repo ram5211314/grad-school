@@ -142,7 +142,16 @@ const nav = computed(() => { const r = currentUser.value?.role; if (r === "ADMIN
 const isAdmin = computed(() => currentUser.value?.role === "ADMIN");
 const isTest = computed(() => currentUser.value?.role === "TEST");
 const totalPages = computed(() => Math.max(1, Math.ceil(totalGroups.value / pageSize)));
-const candidatePrograms = computed(() => selectedPrograms.value.length ? selectedPrograms.value : []);
+const candidatePrograms = computed(() => {
+  if (selectedPrograms.value.length) return selectedPrograms.value;
+  const flat = [];
+  groupedPrograms.value.forEach(g => {
+    g.years.forEach(y => {
+      flat.push({ id: g.universityName + "~" + g.majorCode + "~" + y.year, universityName: g.universityName, majorCode: g.majorCode, majorName: g.majorName, province: g.province, admissionYear: y.year, reexaminationLine: y.reexLine, actualEnrollment: y.actual, registrationCount: y.reg, nationalLine: y.national, sourceName: y.source });
+    });
+  });
+  return flat;
+});
 
 function toggleGroup(key) {
   expandedGroups.value[key] = !expandedGroups.value[key];
@@ -154,8 +163,9 @@ window.addEventListener("hashchange", () => { route.value = location.hash.replac
 watch(selectedPrograms, value => localStorage.setItem("shortlist", JSON.stringify(value)), { deep: true });
 function ratio(p) { return p.registrationCount && p.actualEnrollment ? `${(p.registrationCount / p.actualEnrollment).toFixed(1)} : 1` : "未公开"; }
 function sourceTime(p) { return p.collectedAt ? new Date(p.collectedAt).toLocaleDateString("zh-CN") : "未记录"; }
-function selected(p) { return selectedPrograms.value.some(item => item.id === p.id); }
-function toggle(p) { const i = selectedPrograms.value.findIndex(item => item.id === p.id); if (i >= 0) selectedPrograms.value.splice(i, 1); else if (selectedPrograms.value.length < 5) selectedPrograms.value.push(p); }
+function progKey(p) { return (p.universityName || "") + "~" + (p.majorCode || "") + "~" + (p.admissionYear || p.year || ""); }
+function selected(p) { return selectedPrograms.value.some(item => progKey(item) === progKey(p)); }
+function toggle(p) { const key = progKey(p); const i = selectedPrograms.value.findIndex(item => progKey(item) === key); if (i >= 0) selectedPrograms.value.splice(i, 1); else if (selectedPrograms.value.length < 5) selectedPrograms.value.push({ id: key, universityName: p.universityName, majorCode: p.majorCode, majorName: p.majorName, province: p.province, admissionYear: p.admissionYear || p.year, reexaminationLine: p.reexaminationLine || p.reexLine, actualEnrollment: p.actualEnrollment || p.actual, registrationCount: p.registrationCount || p.reg, nationalLine: p.nationalLine || p.national, sourceName: p.sourceName || p.source }); }
 function clearFilters() { filters.value = { keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" }; selectedMajorCategory.value = ""; filteredMajors.value = []; page.value = 0; loadPrograms(); }
 async function loadPrograms() { loading.value = true; apiError.value = false; try { const params = new URLSearchParams({ page: page.value, pageSize }); Object.entries(filters.value).forEach(([k,v]) => v && params.set(k,v)); const res = await fetch(`${apiBase}/programs/groups?${params}`); if (!res.ok) throw new Error(); const body = await res.json(); groupedPrograms.value = body.items; totalGroups.value = body.total; } catch { apiError.value = true; groupedPrograms.value = []; totalGroups.value = 0; } finally { loading.value = false; } }
 function submitSearch() { page.value = 0; loadPrograms(); }
@@ -222,6 +232,7 @@ onMounted(() => {
                     <td :class="y.actual ? 'has-data' : ''">{{ y.actual ?? '-' }}</td>
                     <td>{{ y.reg ?? '-' }}</td>
                     <td>{{ y.reg && y.actual ? (y.reg / y.actual).toFixed(1) + ':1' : '-' }}</td>
+                    <td><button class="icon" :class="{ 'selected-check': selected({...y, universityName: g.universityName, majorCode: g.majorCode, majorName: g.majorName}) }" @click.prevent="toggle({...y, universityName: g.universityName, majorCode: g.majorCode, majorName: g.majorName, province: g.province})" :title="selected({...y, universityName: g.universityName, majorCode: g.majorCode}) ? '移出对比' : '加入对比'"><Bookmark :size="15"/></button></td>
                   </tr>
                 </tbody>
               </table>
@@ -235,14 +246,14 @@ onMounted(() => {
     <section v-else-if="route === '/compare'" class="page-wrap">
       <div class="page-title"><div><p>SHORTLIST</p><h1>对比清单 <em>{{ selectedPrograms.length }} / 5</em></h1></div><button class="plain" @click="selectedPrograms = []">清空清单</button></div>
       <div v-if="!selectedPrograms.length" class="empty"><Bookmark :size="25"/>从检索页加入不超过 5 个项目。</div>
-      <div v-else class="comparison"><table><thead><tr><th>院校专业</th><th>年份</th><th>复试线</th><th>计划</th><th>报录比</th><th>来源</th><th></th></tr></thead><tbody><tr v-for="p in selectedPrograms" :key="p.id"><td><b>{{ p.universityName }}</b><span>{{ p.majorCode }} · {{ p.majorName }}</span></td><td>{{ p.admissionYear }}</td><td>{{ p.reexaminationLine ?? '未公开' }}</td><td>{{ p.plannedEnrollment ?? '未公开' }}</td><td>{{ ratio(p) }}</td><td>{{ p.sourceName }}</td><td><button class="icon" @click="toggle(p)"><X :size="16"/></button></td></tr></tbody></table></div>
+      <div v-else class="comparison"><table><thead><tr><th>院校专业</th><th>年份</th><th>复试线</th><th>计划</th><th>报录比</th><th>来源</th><th></th></tr></thead><tbody><tr v-for="p in selectedPrograms" :key="progKey(p)"><td><b>{{ p.universityName }}</b><span>{{ p.majorCode }} · {{ p.majorName }}</span></td><td>{{ p.admissionYear }}</td><td>{{ p.reexaminationLine ?? '未公开' }}</td><td>{{ p.plannedEnrollment ?? '未公开' }}</td><td>{{ ratio(p) }}</td><td>{{ p.sourceName }}</td><td><button class="icon" @click="toggle(p)"><X :size="16"/></button></td></tr></tbody></table></div>
     </section>
 
     <DataCharts v-else-if="route === '/charts'" />
 
     <section v-else-if="route === '/recommend'" class="page-wrap recommendation">
       <div class="page-title"><div><p>DECISION SUPPORT</p><h1>择校建议</h1><span>模型会解释评分组成，但不构成录取承诺。</span></div><button class="primary" :disabled="isRecommending || !candidatePrograms.length" @click="getRecommendations"><Sparkles :size="17"/>{{ isRecommending ? '计算中' : '更新建议' }}</button></div>
-      <div class="recommend-layout"><aside class="recommend-form"><h2>个人画像</h2><label>目标方向<select v-model="profile.targetMajor"><option value="">请选择专业</option><option v-for="m in allMajors" :key="m.code" :value="m.code">{{ m.code }} {{ m.name }}</option></select></label><label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label><label>目标地区<div class="province-combo"><div class="province-tags"><span v-for="p in selectedProvinces" :key="p" class="province-tag">{{ p }}<button @click.prevent="removeProvince(p)">&times;</button></span><input v-model="provinceSearch" @input="onProvinceInput" @focus="provinceDropdownOpen=true" @keydown="onProvinceKeydown" placeholder="输入或选择省份" class="province-input"/></div><div v-if="provinceDropdownOpen && filteredProvinces.length" class="province-dropdown"><div v-for="p in filteredProvinces" :key="p" class="province-option" @mousedown.prevent="addProvince(p)">{{ p }}</div></div></div></label><label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label><h2>权重配置</h2><label v-for="(value, key) in weights" :key="key">{{ ({ score: '分数匹配', competition: '竞争度', region: '地区', major: '专业' })[key] }}<input v-model.number="weights[key]" type="range" min="0" max="60"/><span>{{ value }}</span></label><p class="candidate-note">候选集：{{ candidatePrograms.length }} 项</p></aside><div><div v-if="!recommendations.length" class="empty"><Sparkles :size="25"/>填写画像后生成建议</div><div v-else class="recommendations"><article v-for="item in recommendations" :key="`${item.id}-${item.major_name}`"><div><span class="tier" :class="item.tier">{{ item.tier }}</span><b>{{ item.recommendation_score }}</b></div><h2>{{ item.university_name }}</h2><p>{{ item.major_name }} · {{ item.province }}</p><ul><li v-for="reason in item.reasons" :key="reason">{{ reason }}</li></ul><footer>{{ item.admission_year }} 年 · {{ item.source_name || '来源待补充' }} · {{ item.model_version }}</footer></article></div><p v-if="recommendations.length" class="disclaimer">仅供择校参考，不构成录取承诺。</p></div></div>
+      <div class="recommend-layout"><aside class="recommend-form"><h2>个人画像</h2><label>目标方向<ComboBox v-model="profile.targetMajor" :options="allMajors.map(m => ({label: m.code+' '+m.name, value: m.code}))" placeholder="输入专业名称搜索"/></label><label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label><label>目标地区<div class="province-combo"><div class="province-tags"><span v-for="p in selectedProvinces" :key="p" class="province-tag">{{ p }}<button @click.prevent="removeProvince(p)">&times;</button></span><input v-model="provinceSearch" @input="onProvinceInput" @focus="provinceDropdownOpen=true" @keydown="onProvinceKeydown" placeholder="输入或选择省份" class="province-input"/></div><div v-if="provinceDropdownOpen && filteredProvinces.length" class="province-dropdown"><div v-for="p in filteredProvinces" :key="p" class="province-option" @mousedown.prevent="addProvince(p)">{{ p }}</div></div></div></label><label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label><h2>权重配置</h2><label v-for="(value, key) in weights" :key="key">{{ ({ score: '分数匹配', competition: '竞争度', region: '地区', major: '专业' })[key] }}<input v-model.number="weights[key]" type="range" min="0" max="60"/><span>{{ value }}</span></label><p class="candidate-note">候选集：{{ candidatePrograms.length }} 项</p></aside><div><div v-if="!recommendations.length" class="empty"><Sparkles :size="25"/>填写画像后生成建议</div><div v-else class="recommendations"><article v-for="item in recommendations" :key="`${item.id}-${item.major_name}`"><div><span class="tier" :class="item.tier">{{ item.tier }}</span><b>{{ item.recommendation_score }}</b></div><h2>{{ item.university_name }}</h2><p>{{ item.major_name }} · {{ item.province }}</p><ul><li v-for="reason in item.reasons" :key="reason">{{ reason }}</li></ul><footer>{{ item.admission_year }} 年 · {{ item.source_name || '来源待补充' }} · {{ item.model_version }}</footer></article></div><p v-if="recommendations.length" class="disclaimer">仅供择校参考，不构成录取承诺。</p></div></div>
     </section>
 
     <section v-else-if="route === '/user/profile'" class="page-wrap user-page">
