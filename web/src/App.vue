@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { BarChart3, Bookmark, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Database, ExternalLink, GraduationCap, LayoutDashboard, LogOut, MapPin, PieChart, Search, Settings, Shield, SlidersHorizontal, Sparkles, Upload, User, Users, FileText, X } from "lucide-vue-next";
 import LoginPage from "./views/LoginPage.vue";
 import DataCharts from "./views/DataCharts.vue";
+import ComboBox from "./components/ComboBox.vue";
 
 const apiBase = "/api/v1";
 const recommendationUrl = "/recommendation/api/v1/recommendations";
@@ -37,12 +38,14 @@ const allMajors = ref([]);
 const majorCategories = ref([]);
 const selectedMajorCategory = ref("");
 const filteredMajors = ref([]);
+const allExamSubjects = ref([]);
 
 async function loadFilterData() {
   try {
-    const [provRes, majRes] = await Promise.all([
+    const [provRes, majRes, examRes] = await Promise.all([
       fetch(`${apiBase}/provinces`),
-      fetch(`${apiBase}/majors`)
+      fetch(`${apiBase}/majors`),
+      fetch(`${apiBase}/exam-subjects`)
     ]);
     if (provRes.ok) allProvinces.value = await provRes.json();
     if (majRes.ok) {
@@ -55,6 +58,7 @@ async function loadFilterData() {
       });
       majorCategories.value = Object.values(cats).sort((a, b) => a.code.localeCompare(b.code));
     }
+    if (examRes.ok) allExamSubjects.value = await examRes.json();
   } catch (e) { console.error("Load filter data error:", e); }
 }
 
@@ -147,7 +151,7 @@ function ratio(p) { return p.registrationCount && p.actualEnrollment ? `${(p.reg
 function sourceTime(p) { return p.collectedAt ? new Date(p.collectedAt).toLocaleDateString("zh-CN") : "未记录"; }
 function selected(p) { return selectedPrograms.value.some(item => item.id === p.id); }
 function toggle(p) { const i = selectedPrograms.value.findIndex(item => item.id === p.id); if (i >= 0) selectedPrograms.value.splice(i, 1); else if (selectedPrograms.value.length < 5) selectedPrograms.value.push(p); }
-function clearFilters() { filters.value = { keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" }; page.value = 0; loadPrograms(); }
+function clearFilters() { filters.value = { keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" }; selectedMajorCategory.value = ""; filteredMajors.value = []; page.value = 0; loadPrograms(); }
 async function loadPrograms() { loading.value = true; apiError.value = false; try { const params = new URLSearchParams({ page: page.value, pageSize }); Object.entries(filters.value).forEach(([k,v]) => v && params.set(k,v)); const res = await fetch(`${apiBase}/programs/groups?${params}`); if (!res.ok) throw new Error(); const body = await res.json(); groupedPrograms.value = body.items; totalGroups.value = body.total; } catch { apiError.value = true; groupedPrograms.value = []; totalGroups.value = 0; } finally { loading.value = false; } }
 function submitSearch() { page.value = 0; loadPrograms(); }
 async function getRecommendations() { if (!candidatePrograms.value.length) return; isRecommending.value = true; const requestProfile = { estimated_score: profile.value.estimatedScore, target_major: profile.value.targetMajor, preferred_provinces: profile.value.preferredProvinces.split(",").map(x => x.trim()).filter(Boolean), risk_preference: profile.value.riskPreference }; const requestPrograms = candidatePrograms.value.map(p => ({ id:p.id, university_name:p.universityName, major_name:p.majorName, province:p.province, reexamination_line:p.reexaminationLine, national_line:p.nationalLine, actual_enrollment:p.actualEnrollment, registration_count:p.registrationCount, admission_year:p.admissionYear, source_name:p.sourceName })); try { const res = await fetch(recommendationUrl, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({profile:requestProfile, programs:requestPrograms, weights:weights.value}) }); if (!res.ok) throw new Error(); recommendations.value = (await res.json()).items; } finally { isRecommending.value = false; } }
@@ -179,7 +183,7 @@ onMounted(() => {
     <!-- ========== 用户端 ========== -->
     <section v-if="route === '/programs'" class="page-wrap">
       <div class="page-title"><div><p>PROGRAM DIRECTORY</p><h1>院校专业检索</h1><span>按高校+专业分组展示，点击展开查看各年份数据。</span></div><button class="primary" @click="openRecommend"><Sparkles :size="17"/>生成择校建议</button></div>
-      <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校名称、专业名称、专业代码"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option v-for="p in allProvinces" :key="p" :value="p">{{ p }}</option></select></label><label><select v-model="selectedMajorCategory" @change="onMajorCategoryChange"><option value="">全部学科门类</option><option v-for="cat in majorCategories" :key="cat.code" :value="cat.code">{{ cat.code }} {{ cat.name }}</option></select></label><label v-if="filteredMajors.length"><select v-model="filters.majorCode"><option value="">该门类全部专业</option><option v-for="m in filteredMajors" :key="m.code" :value="m.code">{{ m.code }} {{ m.name }}</option></select></label><label><SlidersHorizontal :size="16"/><select v-model="filters.examKeyword"><option value="">全部考试科目</option><option value="408">408 计算机学科专业基础</option><option value="数学一">数学一</option><option value="数学二">数学二</option></select></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
+      <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校名称、专业名称、专业代码"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option v-for="p in allProvinces" :key="p" :value="p">{{ p }}</option></select></label><label><ComboBox v-model="selectedMajorCategory" :options="majorCategories.map(c => ({label: c.code+' '+c.name, value: c.code}))" placeholder="全部学科门类" @select="onMajorCategoryChange"/></label><label v-if="filteredMajors.length"><ComboBox v-model="filters.majorCode" :options="filteredMajors.map(m => ({label: m.code+' '+m.name, value: m.code}))" placeholder="该门类全部专业"/></label><label><SlidersHorizontal :size="16"/><ComboBox v-model="filters.examKeyword" :options="allExamSubjects" placeholder="全部考试科目"/></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
       <p v-if="apiError" class="notice">业务服务不可用。</p><p class="result-meta">{{ totalGroups }} 个高校专业组 · 第 {{ page + 1 }} / {{ totalPages }} 页（每页 {{ pageSize }} 组）</p>
       <div class="grouped-programs">
         <article v-for="g in groupedPrograms" :key="g.universityName + '~' + g.majorCode" class="group-card">

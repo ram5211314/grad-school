@@ -93,6 +93,11 @@ public class ProgramController {
         return programs.findDistinctProvinces();
     }
 
+    @GetMapping("/exam-subjects")
+    public List<String> listExamSubjects() {
+        return programs.findDistinctExamSubjects();
+    }
+
     @GetMapping("/programs/stats")
     public Map<String, Object> getStats() {
         Map<String, Object> stats = new java.util.LinkedHashMap<>();

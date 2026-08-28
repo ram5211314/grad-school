@@ -33,6 +33,9 @@ interface ProgramRepository extends JpaRepository<Program, Long>, JpaSpecificati
 
     @Query("SELECT COUNT(DISTINCT p.universityName) FROM Program p WHERE p.publishStatus='PUBLISHED'")
     long countDistinctUniversities();
+
+    @Query("SELECT DISTINCT p.examSubjects FROM Program p WHERE p.publishStatus='PUBLISHED' AND p.examSubjects IS NOT NULL AND p.examSubjects <> '' ORDER BY p.examSubjects")
+    List<String> findDistinctExamSubjects();
 }
 
 interface StudentProfileRepository extends JpaRepository<StudentProfile, Long> {}

@@ -29,3 +29,16 @@
 .province-select{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.province-check{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border:1px solid #d3dbd0;border-radius:4px;font-size:12px;cursor:pointer;transition:all .15s}.province-check:hover{border-color:#a5cd62}.province-check input:checked+span{color:#315e37;font-weight:600}.province-check:has(input:checked){background:#ecf5df;border-color:#a5cd62}
 .chart-loading{display:flex;align-items:center;justify-content:center;gap:12px;padding:60px 0;color:var(--gray-500);font-size:14px}.spinner{width:24px;height:24px;border:3px solid var(--gray-200);border-top-color:var(--green-600);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 .province-combo{position:relative;width:100%}.province-tags{display:flex;flex-wrap:wrap;gap:4px;padding:4px 8px;border:1px solid var(--gray-300);border-radius:var(--radius);min-height:36px;cursor:text;transition:border-color .15s}.province-tags:focus-within{border-color:var(--green-600)}.province-tag{display:inline-flex;align-items:center;gap:2px;padding:2px 6px;background:var(--green-100);color:var(--green-600);border-radius:4px;font-size:12px;font-weight:500}.province-tag button{border:0;background:none;color:var(--green-600);cursor:pointer;padding:0 2px;font-size:14px;line-height:1;opacity:.6}.province-tag button:hover{opacity:1}.province-input{flex:1;min-width:60px;border:0;outline:0;font-size:13px;background:transparent;color:var(--gray-800)}.province-input::placeholder{color:var(--gray-400)}.province-dropdown{position:absolute;top:100%;left:0;right:0;z-index:50;margin-top:4px;background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:var(--shadow-md);max-height:180px;overflow-y:auto}.province-option{padding:8px 12px;font-size:13px;cursor:pointer;transition:background .1s}.province-option:hover{background:var(--green-100);color:var(--green-600)}
+
+/* ComboBox */
+.combo-box{position:relative;width:100%}
+.combo-input-wrap{display:flex;align-items:center;border:1px solid var(--gray-300);border-radius:var(--radius);background:#fff;transition:border-color .15s;min-height:36px}
+.combo-input-wrap:focus-within{border-color:var(--green-600)}
+.combo-input{flex:1;border:0;outline:0;background:transparent;font-size:13px;padding:6px 8px;color:var(--gray-800);min-width:0}
+.combo-input::placeholder{color:var(--gray-400)}
+.combo-clear{border:0;background:none;color:var(--gray-400);font-size:16px;cursor:pointer;padding:0 6px;line-height:1;opacity:.6}
+.combo-clear:hover{opacity:1;color:var(--gray-600)}
+.combo-dropdown{position:absolute;top:100%;left:0;right:0;z-index:50;margin-top:4px;background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:var(--shadow-md);max-height:180px;overflow-y:auto}
+.combo-option{padding:8px 12px;font-size:13px;cursor:pointer;transition:background .1s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.combo-option:hover,.combo-option.active{background:var(--green-100);color:var(--green-600)}
+.combo-more{padding:6px 12px;font-size:11px;color:var(--gray-400);text-align:center;border-top:1px solid var(--gray-200)}
