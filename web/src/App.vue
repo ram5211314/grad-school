@@ -141,7 +141,7 @@ const candidatePrograms = computed(() => selectedPrograms.value.length ? selecte
 const groupedPrograms = computed(() => {
   const groups = {};
   programs.value.forEach(p => {
-    const key = (p.universityName || "") + "|" + (p.majorCode || "");
+    const key = (p.universityName || "") + "~" + (p.majorCode || "");
     if (!groups[key]) {
       groups[key] = {
         universityName: p.universityName,
@@ -236,8 +236,8 @@ onMounted(() => {
       <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校名称、专业名称、专业代码"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option v-for="p in allProvinces" :key="p" :value="p">{{ p }}</option></select></label><label><select v-model="selectedMajorCategory" @change="onMajorCategoryChange"><option value="">全部学科门类</option><option v-for="cat in majorCategories" :key="cat.code" :value="cat.code">{{ cat.code }} {{ cat.name }}</option></select></label><label v-if="filteredMajors.length"><select v-model="filters.majorCode"><option value="">该门类全部专业</option><option v-for="m in filteredMajors" :key="m.code" :value="m.code">{{ m.code }} {{ m.name }}</option></select></label><label><SlidersHorizontal :size="16"/><select v-model="filters.examKeyword"><option value="">全部考试科目</option><option value="408">408 计算机学科专业基础</option><option value="数学一">数学一</option><option value="数学二">数学二</option></select></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
       <p v-if="apiError" class="notice">业务服务不可用。</p><p class="result-meta">{{ total }} 条记录 · {{ groupedPrograms.length }} 个高校专业组 · 第 {{ groupPage + 1 }} / {{ groupTotalPages }} 页（每页 {{ groupPageSize }} 组）</p>
       <div class="grouped-programs">
-        <article v-for="g in displayedGroups" :key="g.universityName + g.majorCode" class="group-card">
-          <div class="group-header" @click="toggleGroup(g.universityName + g.majorCode)">
+        <article v-for="g in displayedGroups" :key="g.universityName + '~' + g.majorCode" class="group-card">
+          <div class="group-header" @click="toggleGroup(g.universityName + '~' + g.majorCode)">
             <div class="group-info">
               <div class="group-left">
                 <span class="group-code">{{ g.majorCode }}</span>
@@ -249,11 +249,11 @@ onMounted(() => {
               <div class="group-right">
                 <span class="group-years">{{ g.years.length }}年数据</span>
                 <span class="group-latest">{{ g.years[0]?.year || '' }}</span>
-                <ChevronDown :size="18" :class="{ rotated: isExpanded(g.universityName + g.majorCode) }"/>
+                <ChevronDown :size="18" :class="{ rotated: isExpanded(g.universityName + '~' + g.majorCode) }"/>
               </div>
             </div>
           </div>
-          <div v-if="isExpanded(g.universityName + g.majorCode)" class="group-body">
+          <div v-if="isExpanded(g.universityName + '~' + g.majorCode)" class="group-body">
             <p class="group-subjects" v-if="g.examSubjects && g.examSubjects !== '未公开'">考试科目：{{ g.examSubjects }}</p>
             <div class="year-table">
               <table>
