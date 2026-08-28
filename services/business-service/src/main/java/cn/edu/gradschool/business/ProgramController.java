@@ -63,6 +63,36 @@ public class ProgramController {
 
     private String like(String value) { return "%" + value.toLowerCase(Locale.ROOT) + "%"; }
 
+    @GetMapping("/programs/match")
+    public List<Map<String, Object>> matchPrograms(
+            @RequestParam(required = false) String province,
+            @RequestParam(required = false) String majorCode) {
+        List<Program> result = programs.findAll((root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("publishStatus"), "PUBLISHED"));
+            if (province != null && !province.isBlank()) predicates.add(cb.equal(root.get("province"), province));
+            if (majorCode != null && !majorCode.isBlank()) predicates.add(cb.like(root.get("majorCode"), majorCode + "%"));
+            return cb.and(predicates.toArray(Predicate[]::new));
+        });
+        return result.stream().map(p -> {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("id", p.getId());
+            m.put("university_name", p.getUniversityName());
+            m.put("major_code", p.getMajorCode());
+            m.put("major_name", p.getMajorName());
+            m.put("province", p.getProvince());
+            m.put("admission_year", p.getAdmissionYear());
+            m.put("reexamination_line", p.getReexaminationLine());
+            m.put("national_line", p.getNationalLine());
+            m.put("actual_enrollment", p.getActualEnrollment());
+            m.put("registration_count", p.getRegistrationCount());
+            m.put("planned_enrollment", p.getPlannedEnrollment());
+            m.put("source_name", p.getSourceName());
+            m.put("university_level", p.getUniversityLevel());
+            return m;
+        }).toList();
+    }
+
     @GetMapping("/programs/{id}")
     public Program programDetail(@PathVariable Long id) { return programs.findById(id).orElseThrow(() -> new NotFoundException("院校专业不存在")); }
 
