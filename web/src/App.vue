@@ -29,7 +29,8 @@ const recommendations = ref([]); const isRecommending = ref(false); const page =
 const filters = ref({ keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" });
 const profile = ref({ targetMajor: "", estimatedScore: 340, preferredProvinces: "江苏,浙江", riskPreference: "BALANCED" });
 const weights = ref({ score: 45, competition: 20, region: 15, major: 15 });
-const pageSize = 20;
+const pageSize = 200;
+const groupPageSize = 10;
 
 // 动态加载省份和专业
 const allProvinces = ref([]);
@@ -110,6 +111,7 @@ const apiTestBody = ref('{ "page": 0, "pageSize": 5 }');
 const apiTestResult = ref(null);
 const apiTestLoading = ref(false);
 const expandedGroups = ref({});
+const groupPage = ref(0);
 
 async function runApiTest() {
   apiTestLoading.value = true;
@@ -135,7 +137,7 @@ const isTest = computed(() => currentUser.value?.role === "TEST");
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const candidatePrograms = computed(() => selectedPrograms.value.length ? selectedPrograms.value : programs.value);
 
-// 按高校+专业分组，同一年份聚合（取最高复试线、最大录取、最大报名）
+// 按高校+专业分组，同一年份聚合
 const groupedPrograms = computed(() => {
   const groups = {};
   programs.value.forEach(p => {
@@ -181,6 +183,12 @@ const groupedPrograms = computed(() => {
   return Object.values(groups);
 });
 
+const groupTotalPages = computed(() => Math.max(1, Math.ceil(groupedPrograms.value.length / groupPageSize)));
+const displayedGroups = computed(() => {
+  const start = groupPage.value * groupPageSize;
+  return groupedPrograms.value.slice(start, start + groupPageSize);
+});
+
 function toggleGroup(key) {
   expandedGroups.value[key] = !expandedGroups.value[key];
 }
@@ -193,9 +201,9 @@ function ratio(p) { return p.registrationCount && p.actualEnrollment ? `${(p.reg
 function sourceTime(p) { return p.collectedAt ? new Date(p.collectedAt).toLocaleDateString("zh-CN") : "未记录"; }
 function selected(p) { return selectedPrograms.value.some(item => item.id === p.id); }
 function toggle(p) { const i = selectedPrograms.value.findIndex(item => item.id === p.id); if (i >= 0) selectedPrograms.value.splice(i, 1); else if (selectedPrograms.value.length < 5) selectedPrograms.value.push(p); }
-function clearFilters() { filters.value = { keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" }; page.value = 0; loadPrograms(); }
-async function loadPrograms() { loading.value = true; apiError.value = false; try { const params = new URLSearchParams({ page: page.value, pageSize, sort: "universityName,asc" }); Object.entries(filters.value).forEach(([k,v]) => v && params.set(k,v)); const res = await fetch(`${apiBase}/programs?${params}`); if (!res.ok) throw new Error(); const body = await res.json(); programs.value = body.items; total.value = body.total; } catch { apiError.value = true; programs.value = []; total.value = 0; } finally { loading.value = false; } }
-function submitSearch() { page.value = 0; loadPrograms(); }
+function clearFilters() { filters.value = { keyword: "", province: "", majorCode: "", examKeyword: "", studyMode: "" }; page.value = 0; groupPage.value = 0; loadPrograms(); }
+async function loadPrograms() { loading.value = true; apiError.value = false; try { const params = new URLSearchParams({ page: page.value, pageSize, sort: "universityName,asc" }); Object.entries(filters.value).forEach(([k,v]) => v && params.set(k,v)); const res = await fetch(`${apiBase}/programs?${params}`); if (!res.ok) throw new Error(); const body = await res.json(); programs.value = body.items; total.value = body.total; groupPage.value = 0; } catch { apiError.value = true; programs.value = []; total.value = 0; } finally { loading.value = false; } }
+function submitSearch() { page.value = 0; groupPage.value = 0; loadPrograms(); }
 async function getRecommendations() { if (!candidatePrograms.value.length) return; isRecommending.value = true; const requestProfile = { estimated_score: profile.value.estimatedScore, target_major: profile.value.targetMajor, preferred_provinces: profile.value.preferredProvinces.split(",").map(x => x.trim()).filter(Boolean), risk_preference: profile.value.riskPreference }; const requestPrograms = candidatePrograms.value.map(p => ({ id:p.id, university_name:p.universityName, major_name:p.majorName, province:p.province, reexamination_line:p.reexaminationLine, national_line:p.nationalLine, actual_enrollment:p.actualEnrollment, registration_count:p.registrationCount, admission_year:p.admissionYear, source_name:p.sourceName })); try { const res = await fetch(recommendationUrl, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({profile:requestProfile, programs:requestPrograms, weights:weights.value}) }); if (!res.ok) throw new Error(); recommendations.value = (await res.json()).items; } finally { isRecommending.value = false; } }
 function openRecommend() { go("/recommend"); setTimeout(getRecommendations, 0); }
 
@@ -226,9 +234,9 @@ onMounted(() => {
     <section v-if="route === '/programs'" class="page-wrap">
       <div class="page-title"><div><p>PROGRAM DIRECTORY</p><h1>院校专业检索</h1><span>按高校+专业分组展示，点击展开查看各年份数据。</span></div><button class="primary" @click="openRecommend"><Sparkles :size="17"/>生成择校建议</button></div>
       <form class="filters" @submit.prevent="submitSearch"><label class="wide"><Search :size="16"/><input v-model="filters.keyword" placeholder="院校名称、专业名称、专业代码"/></label><label><MapPin :size="16"/><select v-model="filters.province"><option value="">全部省份</option><option v-for="p in allProvinces" :key="p" :value="p">{{ p }}</option></select></label><label><select v-model="selectedMajorCategory" @change="onMajorCategoryChange"><option value="">全部学科门类</option><option v-for="cat in majorCategories" :key="cat.code" :value="cat.code">{{ cat.code }} {{ cat.name }}</option></select></label><label v-if="filteredMajors.length"><select v-model="filters.majorCode"><option value="">该门类全部专业</option><option v-for="m in filteredMajors" :key="m.code" :value="m.code">{{ m.code }} {{ m.name }}</option></select></label><label><SlidersHorizontal :size="16"/><select v-model="filters.examKeyword"><option value="">全部考试科目</option><option value="408">408 计算机学科专业基础</option><option value="数学一">数学一</option><option value="数学二">数学二</option></select></label><button class="primary" :disabled="loading">{{ loading ? '检索中' : '检索' }}</button><button type="button" class="plain" @click="clearFilters">清空</button></form>
-      <p v-if="apiError" class="notice">业务服务不可用。</p><p class="result-meta">{{ total }} 条记录 · {{ groupedPrograms.length }} 个高校专业组 · 第 {{ page + 1 }} / {{ totalPages }} 页</p>
+      <p v-if="apiError" class="notice">业务服务不可用。</p><p class="result-meta">{{ total }} 条记录 · {{ groupedPrograms.length }} 个高校专业组 · 第 {{ groupPage + 1 }} / {{ groupTotalPages }} 页（每页 {{ groupPageSize }} 组）</p>
       <div class="grouped-programs">
-        <article v-for="g in groupedPrograms" :key="g.universityName + g.majorCode" class="group-card">
+        <article v-for="g in displayedGroups" :key="g.universityName + g.majorCode" class="group-card">
           <div class="group-header" @click="toggleGroup(g.universityName + g.majorCode)">
             <div class="group-info">
               <div class="group-left">
@@ -266,7 +274,7 @@ onMounted(() => {
           </div>
         </article>
       </div>
-      <div class="pager"><button class="icon" :disabled="page === 0" @click="page--; loadPrograms()"><ChevronLeft :size="17"/></button><span>第 {{ page + 1 }} 页</span><button class="icon" :disabled="page + 1 >= totalPages" @click="page++; loadPrograms()"><ChevronRight :size="17"/></button></div>
+      <div class="pager"><button class="icon" :disabled="groupPage === 0" @click="groupPage--"><ChevronLeft :size="17"/></button><span>第 {{ groupPage + 1 }} / {{ groupTotalPages }} 页</span><button class="icon" :disabled="groupPage + 1 >= groupTotalPages" @click="groupPage++"><ChevronRight :size="17"/></button></div>
     </section>
 
     <section v-else-if="route === '/compare'" class="page-wrap">
@@ -290,7 +298,6 @@ onMounted(() => {
           <div class="profile-meta">
             <h2>{{ currentUser?.username }}</h2>
             <span class="role-badge" :class="currentUser?.role?.toLowerCase()">{{ currentUser?.role === 'ADMIN' ? '管理员' : currentUser?.role === 'TEST' ? '测试账号' : '考研学生' }}</span>
-            <span class="profile-join">预估 {{ profile.estimatedScore }} 分 · {{ profile.targetMajor }}</span>
           </div>
         </div>
       </div>
@@ -298,26 +305,22 @@ onMounted(() => {
         <div class="profile-sidebar">
           <h3>我的数据</h3>
           <ul class="stats-list">
-            <li><span class="stat-num">{{ selectedPrograms.length }}</span><span class="stat-desc">对比清单</span></li>
-            <li><span class="stat-num">{{ profile.estimatedScore }}</span><span class="stat-desc">预估分数</span></li>
-            <li><span class="stat-num">{{ selectedProvinces.length }}</span><span class="stat-desc">目标省份</span></li>
+            <li><span class="stat-num">{{ selectedPrograms.length }}</span><span>对比清单</span></li>
+            <li><span class="stat-num">{{ profile.estimatedScore }}</span><span>预估分数</span></li>
+            <li><span class="stat-num">{{ selectedProvinces.length }}</span><span>目标省份</span></li>
           </ul>
           <button class="primary" style="width:100%;margin-top:12px" @click="go('/programs')">去检索</button>
         </div>
         <div class="profile-main">
-          <h3>个人画像设置</h3>
-          <div class="form-grid">
-            <label>目标方向<select v-model="profile.targetMajor"><option value="">请选择专业</option><option v-for="m in allMajors" :key="m.code" :value="m.code">{{ m.code }} {{ m.name }}</option></select></label>
-            <label>预估初试分<input v-model.number="profile.estimatedScore" type="number" min="0" max="500"/></label>
-<label>目标地区<div class="province-combo"><div class="province-tags"><span v-for="p in selectedProvinces" :key="p" class="province-tag">{{ p }}<button @click.prevent="removeProvince(p)">&times;</button></span><input v-model="provinceSearch" @input="onProvinceInput" @focus="provinceDropdownOpen=true" @keydown="onProvinceKeydown" placeholder="输入或选择省份" class="province-input"/></div><div v-if="provinceDropdownOpen && filteredProvinces.length" class="province-dropdown"><div v-for="p in filteredProvinces" :key="p" class="province-option" @mousedown.prevent="addProvince(p)">{{ p }}</div></div></div></label>
-            <label>风险偏好<select v-model="profile.riskPreference"><option value="CONSERVATIVE">保守</option><option value="BALANCED">平衡</option><option value="AGGRESSIVE">进取</option></select></label>
-          </div>
-          <h3 style="margin-top:20px">快捷入口</h3>
+          <h3>快捷入口</h3>
           <div class="quick-links">
+            <button class="plain" @click="go('/programs')">院校专业检索</button>
             <button class="plain" @click="go('/compare')">对比清单</button>
-            <button class="plain" @click="go('/charts')">数据可视化</button>
             <button class="plain" @click="go('/recommend')">择校建议</button>
+            <button class="plain" @click="go('/charts')">数据可视化</button>
           </div>
+          <h3 style="margin-top:20px">账号操作</h3>
+          <button class="logout-btn" @click="logout()" style="margin-top:8px"><LogOut :size="15"/> 退出登录</button>
         </div>
       </div>
     </section>

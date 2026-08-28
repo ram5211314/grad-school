@@ -93,6 +93,18 @@ public class ProgramController {
         return programs.findDistinctProvinces();
     }
 
+    @GetMapping("/programs/stats")
+    public Map<String, Object> getStats() {
+        Map<String, Object> stats = new java.util.LinkedHashMap<>();
+        stats.put("total", programs.countByPublishStatus("PUBLISHED"));
+        stats.put("universities", programs.countDistinctUniversities());
+        stats.put("provinces", programs.countByProvince());
+        stats.put("majorCategories", programs.countByMajorCategory());
+        stats.put("yearStats", programs.yearStats());
+        stats.put("topUniversities", programs.topUniversitiesByEnroll().stream().limit(15).toList());
+        return stats;
+    }
+
     @PostMapping("/admin/imports/programs")
     public Map<String, Object> importPrograms(@RequestParam MultipartFile file) throws IOException {
         int success = 0, failed = 0; String line;
