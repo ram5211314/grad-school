@@ -27,7 +27,12 @@ def _competition_score(program):
 def score_program(profile, program, weights=None):
     weights = {**DEFAULT_WEIGHTS, **(weights or {})}
     estimated_score = float(profile.get("estimated_score", 0))
-    line = float(program.get("reexamination_line") or program.get("national_line") or 0)
+    line = program.get("reexamination_line")
+    if not line or line == 0:
+        line = program.get("national_line") or 0
+    if not line or line == 0:
+        return None
+    line = float(line)
     score_gap = estimated_score - line
     tier = _tier(score_gap)
     risk_bonus = RISK_CONFIG.get(profile.get("risk_preference", "BALANCED"), RISK_CONFIG["BALANCED"])[{"保底": "safe", "稳妥": "steady", "冲刺": "reach"}[tier]]
@@ -35,7 +40,9 @@ def score_program(profile, program, weights=None):
     competition, competition_reason = _competition_score(program)
     competition = competition * weights["competition"] / DEFAULT_WEIGHTS["competition"]
     region_match = weights["region"] if program.get("province") in profile.get("preferred_provinces", []) else weights["region"] / 3
-    major_match = weights["major"] if program.get("major_name") == profile.get("target_major") else weights["major"] / 2
+    target = profile.get("target_major", "")
+    major_code = program.get("major_code") or program.get("majorName") or ""
+    major_match = weights["major"] if target and target in str(major_code) else weights["major"] / 2
     total = round(max(0, min(100, score_match + competition + region_match + major_match + risk_bonus)), 1)
     return {**program, "recommendation_score": total, "tier": tier, "model_version": MODEL_VERSION,
             "reasons": [f"预估分与复试线相差 {score_gap:.1f} 分，属于{tier}目标", competition_reason,
@@ -44,4 +51,5 @@ def score_program(profile, program, weights=None):
 
 
 def rank_programs(profile, programs, weights=None):
-    return sorted([score_program(profile, p, weights) for p in programs], key=lambda item: item["recommendation_score"], reverse=True)
+    scored = [score_program(profile, p, weights) for p in programs]
+    return sorted([s for s in scored if s is not None], key=lambda item: item["recommendation_score"], reverse=True)

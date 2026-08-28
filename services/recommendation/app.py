@@ -1,7 +1,9 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from recommendation import DEFAULT_WEIGHTS, MODEL_VERSION, rank_programs
 
 app = Flask(__name__)
+CORS(app)
 
 @app.get("/health")
 def health():
